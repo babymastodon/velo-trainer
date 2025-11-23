@@ -539,27 +539,33 @@
   }
 
   // Category heuristic based on segment intensities (WhatsOnZwift)
+  // rawSegments: array of [durationMinutes, startPct, endPct?]
+  // Returns one of: "Recovery", "Base", "SweetSpot", "Threshold", "VO2Max", "HIIT", "Uncategorized"
   function inferCategoryFromSegments(rawSegments) {
     if (!Array.isArray(rawSegments) || rawSegments.length === 0) {
       return "Uncategorized";
     }
 
-    const buckets = {
-      recovery: 0,
-      base: 0,
-      tempo: 0,
-      sweetSpot: 0,
-      threshold: 0,
-      vo2: 0,
-      hiit: 0
+    // Time (seconds) in each canonical zone (by %FTP)
+    const zoneTime = {
+      recovery: 0,   // < 55%
+      base: 0,       // 55–75%
+      tempo: 0,      // 76–87%
+      sweetSpot: 0,  // 88–94%
+      threshold: 0,  // 95–105%
+      vo2: 0,        // 106–120%
+      anaerobic: 0   // > 120%
     };
+
+    let totalSec = 0;
+    let workSec = 0; // time at/above ~tempo (>= 75%)
 
     for (const seg of rawSegments) {
       if (!Array.isArray(seg) || seg.length < 2) continue;
       const minutes = Number(seg[0]);
       const startPct = Number(seg[1]);
-      const endPct =
-        seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
+      const endPct = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
+
       if (
         !Number.isFinite(minutes) ||
         !Number.isFinite(startPct) ||
@@ -567,48 +573,87 @@
       ) {
         continue;
       }
+
       const durSec = minutes * 60;
-      const avgFrac = ((startPct + endPct) / 2) / 100;
-      const x = avgFrac;
+      if (durSec <= 0) continue;
 
-      if (x < 0.55) buckets.recovery += durSec;
-      else if (x < 0.75) buckets.base += durSec;
-      else if (x < 0.88) buckets.tempo += durSec;
-      else if (x < 0.95) buckets.sweetSpot += durSec;
-      else if (x < 1.05) buckets.threshold += durSec;
-      else if (x < 1.2) buckets.vo2 += durSec;
-      else buckets.hiit += durSec;
-    }
+      const avgPct = (startPct + endPct) / 2;
+      totalSec += durSec;
 
-    let bestKey = null;
-    let bestVal = 0;
-    for (const [k, v] of Object.entries(buckets)) {
-      if (v > bestVal) {
-        bestVal = v;
-        bestKey = k;
+      // Assign to zone by average %FTP
+      let zoneKey;
+      if (avgPct < 55) zoneKey = "recovery";
+      else if (avgPct < 76) zoneKey = "base";         // 55–75
+      else if (avgPct < 88) zoneKey = "tempo";        // 76–87
+      else if (avgPct < 95) zoneKey = "sweetSpot";    // 88–94
+      else if (avgPct < 106) zoneKey = "threshold";   // 95–105
+      else if (avgPct < 121) zoneKey = "vo2";         // 106–120
+      else zoneKey = "anaerobic";                     // >120
+
+      zoneTime[zoneKey] += durSec;
+
+      // "Work" time is anything ≥ ~tempo (≥ 75% FTP)
+      if (avgPct >= 75) {
+        workSec += durSec;
       }
     }
-    if (!bestKey || bestVal === 0) return "Uncategorized";
 
-    switch (bestKey) {
-      case "recovery":
-        return "Recovery";
-      case "base":
-        return "Base";
-      case "tempo":
-        return "Tempo";
-      case "sweetSpot":
-        return "SweetSpot";
-      case "threshold":
-        return "Threshold";
-      case "vo2":
-        return "VO2Max";
-      case "hiit":
-        return "HIIT";
-      default:
-        return "Uncategorized";
+    if (totalSec === 0) return "Uncategorized";
+
+    const z = zoneTime;
+    const hiSec = z.vo2 + z.anaerobic;
+    const thrSec = z.threshold;
+    const ssSec = z.sweetSpot;
+    const tempoSec = z.tempo;
+
+    // If almost no time spent working above ~75% FTP,
+    // treat it as Recovery or Base regardless of short spikes.
+    const workFrac = workSec / totalSec;
+    if (workFrac < 0.15) {
+      if (z.recovery / totalSec >= 0.7) return "Recovery";
+      return "Base";
     }
+
+    // For categorisation, only look at the distribution of WORK time
+    const safeDiv = workSec || 1;
+    const fracWork = {
+      hi: hiSec / safeDiv,                               // VO2 + anaerobic
+      thr: thrSec / safeDiv,
+      ss: ssSec / safeDiv,
+      tempo: tempoSec / safeDiv
+    };
+
+    // 1) High-intensity dominated workouts → HIIT / VO2Max
+    if (fracWork.hi >= 0.25) {
+      const anaerFrac = z.anaerobic / safeDiv;
+      // If a decent chunk is really >120% FTP, call it HIIT
+      if (anaerFrac >= 0.15) {
+        return "HIIT";
+      }
+      return "VO2Max";
+    }
+
+    // 2) Threshold-centric hard workouts
+    if (fracWork.thr + fracWork.hi >= 0.40) {
+      return "Threshold";
+    }
+
+    // 3) SweetSpot-centric (including some threshold/tempo)
+    if (fracWork.ss + fracWork.thr >= 0.40 || fracWork.ss >= 0.30) {
+      return "SweetSpot";
+    }
+
+    // 4) Tempo-heavy but not much actual threshold/VO2
+    // (map "tempo" to something more specific than Base; SweetSpot is closest)
+    if (fracWork.tempo >= 0.50) {
+      return "SweetSpot";
+    }
+
+    // 5) Everything else that still has some work above 75% → Base
+    return "Base";
   }
+
+
 
   // WhatsOnZwift DOM extraction helpers
 
