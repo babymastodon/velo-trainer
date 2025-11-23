@@ -685,9 +685,56 @@
     const segments = [];
 
     for (const bar of bars) {
-      const text = bar.textContent || "";
+      const text = (bar.textContent || "").replace(/\s+/g, " ").trim();
+      const powSpans = bar.querySelectorAll('span[data-unit="relpow"][data-value]');
 
-      // First try minutes, then seconds
+      // --- Special case: Intervals like "5x 4min @ 72% FTP, 2min @ 52% FTP" ---
+      // Pattern: <reps>x <onDur>min ... <offDur>min ...
+      const repMatch = text.match(/(\d+)\s*x\b/i);
+      if (repMatch && powSpans.length >= 2) {
+        const reps = parseInt(repMatch[1], 10);
+        if (Number.isFinite(reps) && reps > 0) {
+          const durMatches = Array.from(text.matchAll(/(\d+(?:\.\d+)?)\s*min/gi));
+          if (durMatches.length >= 2) {
+            const onMinutes = parseFloat(durMatches[0][1]);
+            const offMinutes = parseFloat(durMatches[1][1]);
+
+            const pOn = Number(powSpans[0].getAttribute("data-value"));
+            const pOff = Number(powSpans[1].getAttribute("data-value"));
+
+            if (
+              Number.isFinite(onMinutes) &&
+              onMinutes > 0 &&
+              Number.isFinite(offMinutes) &&
+              offMinutes > 0 &&
+              Number.isFinite(pOn) &&
+              Number.isFinite(pOff)
+            ) {
+              for (let i = 0; i < reps; i++) {
+                // On segment
+                segments.push({
+                  minutes: onMinutes,
+                  startPct: pOn,
+                  endPct: pOn,
+                  cadence: null
+                });
+                // Off / recovery segment
+                segments.push({
+                  minutes: offMinutes,
+                  startPct: pOff,
+                  endPct: pOff,
+                  cadence: null
+                });
+              }
+              continue; // handled this bar completely
+            }
+          }
+        }
+      }
+
+      // --- Regular single-interval bars (including ramps & seconds) ---
+
+      // Duration: first try minutes, then seconds
       let minutes = null;
       const minMatch = text.match(/(\d+)\s*min/i);
       if (minMatch) {
@@ -701,15 +748,11 @@
           }
         }
       }
-
       if (!Number.isFinite(minutes) || minutes <= 0) continue;
 
+      // Optional cadence "@ 85rpm"
       const cadenceMatch = text.match(/@\s*(\d+)\s*rpm/i);
       const cadence = cadenceMatch ? Number(cadenceMatch[1]) : null;
-
-      const powSpans = bar.querySelectorAll(
-        'span[data-unit="relpow"][data-value]'
-      );
 
       if (powSpans.length === 1) {
         const pct = Number(powSpans[0].getAttribute("data-value"));
@@ -731,12 +774,14 @@
           cadence
         });
       } else {
+        // no relpow span found; skip
         continue;
       }
     }
 
     return segments;
   }
+
 
   function buildMetaFromWhatsonZwift(rawSegments, url) {
     const name = extractWozTitle();
