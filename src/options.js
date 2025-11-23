@@ -220,17 +220,17 @@ function inferCategoryFromSegments(rawSegments) {
   }
 
   const zoneTime = {
-    recovery: 0,   // < 55%
-    base: 0,       // 55–75%
-    tempo: 0,      // 76–87%
-    sweetSpot: 0,  // 88–94%
-    threshold: 0,  // 95–105%
-    vo2: 0,        // 106–120%
-    anaerobic: 0   // > 120%
+    recovery: 0,
+    base: 0,
+    tempo: 0,
+    sweetSpot: 0,
+    threshold: 0,
+    vo2: 0,
+    anaerobic: 0
   };
 
   let totalSec = 0;
-  let workSec = 0; // time at/above ~tempo (>= 75% FTP)
+  let workSec = 0;
 
   for (const seg of rawSegments) {
     if (!Array.isArray(seg) || seg.length < 2) continue;
@@ -263,9 +263,7 @@ function inferCategoryFromSegments(rawSegments) {
 
     zoneTime[zoneKey] += durSec;
 
-    if (avgPct >= 75) {
-      workSec += durSec;
-    }
+    if (avgPct >= 75) workSec += durSec;
   }
 
   if (totalSec === 0) return "Uncategorized";
@@ -316,14 +314,12 @@ function inferCategoryFromSegments(rawSegments) {
 
 // ---------------- ZWO parsing ----------------
 
-// Build segments from ZWO <workout> children
-// Returns { segmentsForMetrics, segmentsForCategory }
 function extractSegmentsFromZwo(doc) {
   const workoutEl = doc.querySelector("workout_file > workout");
   if (!workoutEl) return {segmentsForMetrics: [], segmentsForCategory: []};
 
   const segments = [];
-  const rawSegments = []; // [minutes, pctLow, pctHigh]
+  const rawSegments = [];
 
   const children = Array.from(workoutEl.children);
 
@@ -455,12 +451,11 @@ async function scanWorkoutsFromDirectory(handle) {
   return workouts;
 }
 
-// recompute adjusted kJ for all workouts and re-render
 function recomputeKjAndRender() {
   renderWorkoutManager();
 }
 
-// ---------------- Filtering, sorting, and rendering ----------------
+// ---------------- Filtering / sorting helpers ----------------
 
 function getAdjustedKj(workout) {
   if (workout.baseKj == null || !Number.isFinite(workout.ftpFromFile) || !Number.isFinite(currentFtp)) {
@@ -482,6 +477,71 @@ function getDurationBucket(durationMin) {
   if (durationMin <= 240) return "210-240";
   return ">240";
 }
+
+// Return the CURRENT visible list of workouts (filtered + sorted)
+// This is used by both the renderer and hotkey navigation.
+function computeVisibleWorkouts() {
+  const searchInput = document.getElementById("searchInput");
+  const categoryFilter = document.getElementById("categoryFilter");
+  const durationFilter = document.getElementById("durationFilter");
+
+  const searchTerm = (searchInput && searchInput.value || "").toLowerCase();
+  const catValue = (categoryFilter && categoryFilter.value) || "";
+  const durValue = (durationFilter && durationFilter.value) || "";
+
+  let shown = currentWorkouts;
+
+  if (catValue) {
+    shown = shown.filter((w) => w.category === catValue);
+  }
+
+  if (durValue) {
+    shown = shown.filter((w) => getDurationBucket(w.durationMin) === durValue);
+  }
+
+  if (searchTerm) {
+    shown = shown.filter((w) => {
+      const haystack = [
+        w.name,
+        w.category,
+        w.source,
+        (w.description || "").slice(0, 300)
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(searchTerm);
+    });
+  }
+
+  const sortKey = currentSortKey;
+  const dir = currentSortDir === "asc" ? 1 : -1;
+
+  shown = shown.slice().sort((a, b) => {
+    function num(val) {
+      return Number.isFinite(val) ? val : -Infinity;
+    }
+    if (sortKey === "kjAdj") {
+      return (num(getAdjustedKj(a)) - num(getAdjustedKj(b))) * dir;
+    }
+    if (sortKey === "if") {
+      return (num(a.ifValue) - num(b.ifValue)) * dir;
+    }
+    if (sortKey === "tss") {
+      return (num(a.tss) - num(b.tss)) * dir;
+    }
+    if (sortKey === "duration") {
+      return (num(a.durationMin) - num(b.durationMin)) * dir;
+    }
+    if (sortKey === "name") {
+      return a.name.localeCompare(b.name) * dir;
+    }
+    return 0;
+  });
+
+  return shown;
+}
+
+// ---------------- Rendering ----------------
 
 function refreshCategoryFilter() {
   const select = document.getElementById("categoryFilter");
@@ -541,15 +601,14 @@ function updateSortHeaderIndicator() {
 
 function renderWorkoutManager() {
   const tbody = document.getElementById("workoutTbody");
-  const searchInput = document.getElementById("searchInput");
-  const categoryFilter = document.getElementById("categoryFilter");
-  const durationFilter = document.getElementById("durationFilter");
   const summaryEl = document.getElementById("managerSummary");
   const workoutManager = document.getElementById("workoutManager");
 
   if (!tbody || !workoutManager) return;
 
-  if (currentWorkouts.length === 0) {
+  const total = currentWorkouts.length;
+
+  if (total === 0) {
     workoutManager.classList.remove("hidden");
     tbody.innerHTML = "";
     if (summaryEl) summaryEl.textContent = "No .zwo files found in this folder yet.";
@@ -559,67 +618,14 @@ function renderWorkoutManager() {
 
   workoutManager.classList.remove("hidden");
 
-  const searchTerm = (searchInput && searchInput.value || "").toLowerCase();
-  const catValue = (categoryFilter && categoryFilter.value) || "";
-  const durValue = (durationFilter && durationFilter.value) || "";
-
-  let shown = currentWorkouts;
-
-  if (catValue) {
-    shown = shown.filter((w) => w.category === catValue);
-  }
-
-  if (durValue) {
-    shown = shown.filter((w) => getDurationBucket(w.durationMin) === durValue);
-  }
-
-  if (searchTerm) {
-    shown = shown.filter((w) => {
-      const haystack = [
-        w.name,
-        w.category,
-        w.source,
-        (w.description || "").slice(0, 300)
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(searchTerm);
-    });
-  }
-
-  // sort
-  const sortKey = currentSortKey;
-  const dir = currentSortDir === "asc" ? 1 : -1;
-
-  shown = shown.slice().sort((a, b) => {
-    function num(val) {
-      return Number.isFinite(val) ? val : -Infinity;
-    }
-    if (sortKey === "kjAdj") {
-      return (num(getAdjustedKj(a)) - num(getAdjustedKj(b))) * dir;
-    }
-    if (sortKey === "if") {
-      return (num(a.ifValue) - num(b.ifValue)) * dir;
-    }
-    if (sortKey === "tss") {
-      return (num(a.tss) - num(b.tss)) * dir;
-    }
-    if (sortKey === "duration") {
-      return (num(a.durationMin) - num(b.durationMin)) * dir;
-    }
-    if (sortKey === "name") {
-      return a.name.localeCompare(b.name) * dir;
-    }
-    return 0;
-  });
+  const shown = computeVisibleWorkouts();
+  const shownCount = shown.length;
 
   tbody.innerHTML = "";
 
-  const total = currentWorkouts.length;
-  const shownCount = shown.length;
   if (summaryEl) summaryEl.textContent = `${shownCount} of ${total} workouts shown`;
 
-  const colCount = 7; // Name, Category, Source, IF, TSS, Duration, kJ
+  const colCount = 7;
 
   for (const w of shown) {
     const key = w.fileName || w.name;
@@ -660,7 +666,6 @@ function renderWorkoutManager() {
 
     tbody.appendChild(tr);
 
-    // Expansion row
     const expanded = currentExpandedKey === key;
     if (expanded) {
       const expTr = document.createElement("tr");
@@ -693,7 +698,6 @@ function renderWorkoutManager() {
       renderWorkoutGraph(graphDiv, w);
     }
 
-    // Row click toggles expansion
     tr.addEventListener("click", () => {
       if (currentExpandedKey === key) {
         currentExpandedKey = null;
@@ -730,7 +734,7 @@ function renderWorkoutGraph(container, workout) {
 
   const width = 400;
   const height = 120;
-  const maxRel = 1.4; // y-axis max relative to FTP
+  const maxRel = 1.4;
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
@@ -791,9 +795,8 @@ function renderWorkoutGraph(container, workout) {
   tooltip.style.color = "#fff";
   tooltip.style.whiteSpace = "nowrap";
   tooltip.style.display = "none";
-  tooltip.style.zIndex = "5";
+  tooltip.style.zIndex = "10";
 
-  container.style.position = "relative";
   container.appendChild(svg);
   container.appendChild(tooltip);
 
@@ -813,14 +816,74 @@ function renderWorkoutGraph(container, workout) {
     tooltip.style.display = "block";
 
     const rect = container.getBoundingClientRect();
-    const tx = e.clientX - rect.left + 8;
-    const ty = e.clientY - rect.top + 8;
+    let tx = e.clientX - rect.left + 8;
+    let ty = e.clientY - rect.top + 8;
+
+    const ttRect = tooltip.getBoundingClientRect();
+
+    if (tx + ttRect.width > rect.width - 4) {
+      tx = rect.width - ttRect.width - 4;
+    }
+    if (tx < 0) tx = 0;
+
+    if (ty + ttRect.height > rect.height - 4) {
+      ty = rect.height - ttRect.height - 4;
+    }
+    if (ty < 0) ty = 0;
+
     tooltip.style.left = `${tx}px`;
     tooltip.style.top = `${ty}px`;
   });
 
   svg.addEventListener("mouseleave", () => {
     tooltip.style.display = "none";
+  });
+}
+
+// ---------------- Hotkeys: j/k and up/down to navigate rows ----------------
+
+function moveExpansion(delta) {
+  const shown = computeVisibleWorkouts();
+  if (!shown.length) return;
+
+  // Find current index in visible list
+  let idx = shown.findIndex((w) => {
+    const key = w.fileName || w.name;
+    return key === currentExpandedKey;
+  });
+
+  if (idx === -1) {
+    // Nothing expanded yet → pick first (for any direction)
+    idx = delta > 0 ? 0 : shown.length - 1;
+  } else {
+    idx = (idx + delta + shown.length) % shown.length;
+  }
+
+  const next = shown[idx];
+  currentExpandedKey = next.fileName || next.name;
+  renderWorkoutManager();
+}
+
+function setupHotkeys() {
+  document.addEventListener("keydown", (e) => {
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+      return;
+    }
+
+    let handled = false;
+
+    if (e.key === "ArrowDown" || e.key === "j" || e.key === "J") {
+      moveExpansion(+1);
+      handled = true;
+    } else if (e.key === "ArrowUp" || e.key === "k" || e.key === "K") {
+      moveExpansion(-1);
+      handled = true;
+    }
+
+    if (handled) {
+      e.preventDefault();
+    }
   });
 }
 
@@ -928,6 +991,7 @@ async function initDirectoryAndManager() {
   }
 
   setupSorting();
+  setupHotkeys();
 }
 
 async function rescanWorkouts() {

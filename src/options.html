@@ -8,7 +8,6 @@
   <style>
     :root {
       --accent: #e53935;
-      --accent-soft: rgba(229, 57, 53, 0.04);
       --border: #dddddd;
       --text-main: #222222;
       --text-muted: #666666;
@@ -27,7 +26,6 @@
         --text-main: #f0f0f0;
         --text-muted: #aaaaaa;
         --table-header-bg: #202020;
-        --accent-soft: rgba(229, 57, 53, 0.06);
         --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.6);
       }
     }
@@ -41,8 +39,8 @@
       padding: 20px;
       background: var(--bg);
       color: var(--text-main);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", system-ui, sans-serif;
       display: flex;
       justify-content: center;
       align-items: flex-start;
@@ -60,9 +58,17 @@
 
     .card-header {
       display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .card-header-main {
+      display: flex;
       align-items: center;
-      margin-bottom: 10px;
       gap: 10px;
+      min-width: 0;
     }
 
     .logo-circle {
@@ -79,7 +85,7 @@
     }
 
     .title {
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 600;
       letter-spacing: 0.01em;
     }
@@ -90,156 +96,108 @@
       margin-top: 2px;
     }
 
-    .section-title {
-      margin-top: 12px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .field-group {
-      margin-top: 6px;
-      padding: 8px 10px;
-      border-radius: 6px;
-      background: #fafafa;
-      border: 1px solid #e4e4e4;
-    }
-
-    .field-row {
+    /* Header folder block (top-right) */
+    .card-header-folder {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      font-size: 12px;
+      min-width: 260px;
     }
 
-    .btn {
-      border: 1px solid transparent;
-      border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      display: inline-flex;
+    .header-folder-path-row {
+      display: flex;
       align-items: center;
       gap: 6px;
-      background: #f5f5f5;
-      color: var(--text-main);
-      transition: background-color 0.12s ease, border-color 0.12s ease,
-        transform 0.06s ease, box-shadow 0.12s ease;
+      max-width: 100%;
     }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #ffffff;
-      border-color: var(--accent);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--accent);
-      border-color: rgba(229, 57, 53, 0.4);
-    }
-
-    .btn:hover {
-      transform: translateY(-0.5px);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    }
-
-    .btn:active {
-      transform: translateY(0);
-      box-shadow: none;
-    }
-
-    /* ZWO folder – single line, subtle */
-    #dirSection {
-      padding-top: 6px;
-      padding-bottom: 6px;
-    }
-
-    .dir-row {
-      display: flex;
-      align-items: center;
-      flex-wrap: nowrap;
-      gap: 8px;
-      font-size: 12px;
-      min-width: 0;
-    }
-
-    .dir-title {
+    .header-folder-label {
       font-weight: 600;
       color: var(--text-main);
+      white-space: nowrap;
     }
 
-    #dirCurrent {
-      font-size: 11px;
+    .header-folder-path {
+      max-width: 320px;
       color: var(--text-main);
-      max-width: 280px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-size: 12px;
+      white-space: normal;
+      word-break: break-all;
     }
 
-    .dir-support {
-      font-size: 11px;
+    .header-folder-info-row {
       color: var(--text-muted);
+      font-size: 12px;
+      text-align: right;
     }
 
-    .dir-hint {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-left: auto;
-      white-space: nowrap;
+    .header-folder-buttons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+      justify-content: flex-end;
     }
 
     .folder-btn {
-      padding: 4px 10px;
-      font-size: 12px;
+      width: 26px;
+      height: 26px;
+      padding: 0;
       border-radius: 6px;
       background: var(--surface);
       border: 1px solid var(--border);
       color: var(--text-main);
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.12s ease, transform 0.06s ease, box-shadow 0.12s ease;
+    }
+
+    .folder-btn svg {
+      width: 14px;
+      height: 14px;
+      display: block;
     }
 
     .folder-btn:hover {
-      background: rgba(0, 0, 0, 0.06);
+      background: rgba(0, 0, 0, 0.04);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+
+    .folder-btn:active {
+      transform: scale(0.96);
+      background: rgba(0, 0, 0, 0.08);
     }
 
     @media (prefers-color-scheme: dark) {
       .folder-btn:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .folder-btn:active {
+        background: rgba(255, 255, 255, 0.12);
       }
     }
 
-    .footer-note {
-      margin-top: 10px;
+    .header-folder-support {
       font-size: 11px;
       color: var(--text-muted);
-      text-align: left;
+      max-width: 220px;
+      text-align: right;
     }
 
-    .kbd {
-      display: inline-block;
-      padding: 1px 5px;
-      border-radius: 4px;
-      border: 1px solid #d0d0d0;
-      background: #f5f5f5;
-      font-size: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-        "Liberation Mono", "Courier New", monospace;
+    .section-title {
+      margin-top: 4px;
+      font-size: 13px;
+      font-weight: 600;
     }
 
-    .hidden {
-      display: none;
-    }
-
-    /* Workout manager */
-
-    .manager {
-      margin-top: 14px;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      padding: 10px 12px 12px;
-      background: #ffffff;
+    /* Workout manager layout */
+    #workoutManager {
+      margin-top: 12px;
     }
 
     .manager-header {
@@ -253,6 +211,12 @@
 
     .manager-header-left {
       min-width: 180px;
+    }
+
+    #managerSummary {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
     }
 
     .manager-controls {
@@ -280,11 +244,13 @@
       min-width: 240px;
     }
 
+    /* no visual highlight on focus */
     .manager-controls input[type="search"]:focus,
     .manager-controls select:focus,
     .manager-controls input[type="number"]:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px rgba(229, 57, 53, 0.3);
+      border-color: inherit !important;
+      box-shadow: none !important;
+      outline: none !important;
     }
 
     .ftp-inline-group {
@@ -297,11 +263,10 @@
     .ftp-inline-label {
       font-size: 11px;
       color: var(--text-muted);
-      margin-right: 2px;
     }
 
     .manager-table-wrapper {
-      max-height: 380px;
+      max-height: 420px;
       overflow: auto;
       margin-top: 4px;
       border-radius: 6px;
@@ -336,8 +301,6 @@
       cursor: default;
       user-select: none;
       position: relative;
-      text-align: left;
-      /* explicit left align */
     }
 
     th[data-sort-key] {
@@ -387,7 +350,7 @@
       display: flex;
       gap: 10px;
       padding: 6px 4px 4px;
-      align-items: stretch;
+      align-items: flex-start;
       flex-wrap: wrap;
     }
 
@@ -395,7 +358,8 @@
       flex: 0 0 50%;
       max-width: 50%;
       min-width: 260px;
-      overflow: hidden;
+      overflow: visible;
+      position: relative;
     }
 
     .workout-graph-svg {
@@ -409,14 +373,11 @@
       min-width: 220px;
       font-size: 12px;
       color: var(--text-main);
-      max-height: 160px;
-      overflow: auto;
       padding-left: 4px;
       line-height: 1.4;
       white-space: pre-wrap;
     }
 
-    /* extra space only for actual paragraph breaks (double <br>) */
     .workout-detail br+br {
       display: block;
       margin-bottom: 0.6em;
@@ -427,17 +388,36 @@
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
     }
 
-    #managerSummary {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
+    .hidden {
+      display: none;
     }
 
-    .status {
+    .footer-note {
+      margin-top: 10px;
       font-size: 11px;
       color: var(--text-muted);
-      min-height: 16px;
-      text-align: right;
+      text-align: left;
+      line-height: 1.5;
+    }
+
+    .footer-note a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer-note a:hover {
+      text-decoration: underline;
+    }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid #d0d0d0;
+      background: #f5f5f5;
+      font-size: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -449,40 +429,6 @@
       .card {
         background: var(--surface);
         border-color: var(--border);
-      }
-
-      .field-group {
-        background: #161616;
-        border-color: #333333;
-      }
-
-      .btn {
-        background: #252525;
-        color: var(--text-main);
-        border-color: #333333;
-      }
-
-      .btn-primary {
-        background: var(--accent);
-        border-color: var(--accent);
-        color: #ffffff;
-      }
-
-      .btn-ghost {
-        background: transparent;
-        color: var(--accent);
-        border-color: rgba(229, 57, 53, 0.5);
-      }
-
-      .kbd {
-        border-color: #555555;
-        background: #222222;
-        color: #f0f0f0;
-      }
-
-      .manager {
-        background: #1c1c1c;
-        border-color: #333333;
       }
 
       .manager-table-wrapper {
@@ -525,12 +471,33 @@
       .manager-controls input[type="search"]:focus,
       .manager-controls select:focus,
       .manager-controls input[type="number"]:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 1px rgba(229, 57, 53, 0.5);
+        border-color: inherit !important;
+        box-shadow: none !important;
+        outline: none !important;
+      }
+
+
+      .kbd {
+        border-color: #555555;
+        background: #222222;
+        color: #f5f5f5;
       }
     }
 
     @media (max-width: 800px) {
+      .card-header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .card-header-folder {
+        align-items: flex-start;
+      }
+
+      .header-folder-path {
+        max-width: 100%;
+      }
+
       .workout-graph {
         flex: 1 1 100%;
         max-width: 100%;
@@ -548,10 +515,6 @@
         padding: 12px 10px;
       }
 
-      .manager-header {
-        align-items: flex-start;
-      }
-
       .manager-controls {
         justify-content: flex-start;
         flex-wrap: wrap;
@@ -564,35 +527,47 @@
 <body>
   <main class="card">
     <header class="card-header">
-      <div class="logo-circle">🚴</div>
-      <div>
-        <div class="title">ZWO Downloader</div>
-        <div class="subtitle">
-          Manage and explore your local ZWO workout library.
+      <div class="card-header-main">
+        <div class="logo-circle">🚴</div>
+        <div>
+          <div class="title">ZWO Downloader</div>
+          <div class="subtitle">Manage and explore your local ZWO workout library.</div>
         </div>
+      </div>
+
+      <div class="card-header-folder">
+        <div class="header-folder-path-row">
+          <span class="header-folder-label">ZWO folder:</span>
+          <span id="dirCurrent" class="header-folder-path">No folder selected.</span>
+          <button id="chooseDirBtn" class="folder-btn"
+            title="Choose the folder where ZWO files are stored and managed.">
+            <!-- edit icon -->
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor"
+                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41L18.37 3.29a1 1 0 0 0-1.41 0L15.13 5.12l3.75 3.75 1.83-1.83z" />
+            </svg>
+          </button>
+          <button id="rescanBtn" class="folder-btn" title="Rescan the selected folder for ZWO workouts.">
+            <!-- refresh icon -->
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor"
+                d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7c2.76 0 5 2.24 5 5a5 5 0 0 1-8.9 3H6.44A7 7 0 0 0 19 12c0-2.21-.9-4.21-2.35-5.65z" />
+            </svg>
+          </button>
+        </div>
+        <div class="header-folder-info-row">
+          Where newly downloaded ZWO files are saved and managed.
+        </div>
+        <div class="header-folder-support" id="dirSupportNote"></div>
       </div>
     </header>
 
-    <!-- Directory selection -->
-    <section class="field-group" id="dirSection">
-      <div class="dir-row">
-        <span class="dir-title">ZWO folder:</span>
-        <span id="dirCurrent">No folder selected.</span>
-
-        <button id="chooseDirBtn" class="folder-btn">Choose…</button>
-        <button id="rescanBtn" class="folder-btn">Rescan</button>
-
-        <span id="dirSupportNote" class="dir-support"></span>
-        <span class="dir-hint">Where newly downloaded ZWO files are saved and managed.</span>
-      </div>
-    </section>
-
-    <!-- Workout Manager -->
-    <section id="workoutManager" class="manager hidden">
+    <!-- Workout Manager (no outer "well") -->
+    <section id="workoutManager" class="hidden">
       <div class="manager-header">
         <div class="manager-header-left">
-          <div class="section-title" style="margin-top: 0;">Workout manager</div>
-          <div class="hint" id="managerSummary"></div>
+          <div class="section-title">Workout manager</div>
+          <div id="managerSummary"></div>
         </div>
         <div class="manager-controls">
           <input id="searchInput" type="search" placeholder="Search by name, source, or text…" />
@@ -639,9 +614,18 @@
     </section>
 
     <div class="footer-note">
-      You can reopen this page anytime via
-      <span class="kbd">Right click → Options</span>
-      on the ZWO Downloader extension icon.
+      <div>
+        You can reopen this page anytime via
+        <span class="kbd">Right click → Options</span>
+        on the ZWO Downloader extension icon.
+      </div>
+      <div style="margin-top:4px;">
+        Download more workouts from
+        <a href="https://www.trainerroad.com/app/cycling/workouts" target="_blank"
+          rel="noopener noreferrer">TrainerRoad</a>,
+        <a href="https://app.trainerday.com/search" target="_blank" rel="noopener noreferrer">TrainerDay</a>, and
+        <a href="https://whatsonzwift.com/workouts" target="_blank" rel="noopener noreferrer">WhatsOnZwift</a>.
+      </div>
     </div>
   </main>
 
