@@ -688,16 +688,29 @@
       const text = (bar.textContent || "").replace(/\s+/g, " ").trim();
       const powSpans = bar.querySelectorAll('span[data-unit="relpow"][data-value]');
 
-      // --- Special case: Intervals like "5x 4min @ 72% FTP, 2min @ 52% FTP" ---
-      // Pattern: <reps>x <onDur>min ... <offDur>min ...
+      // --- Special case: Intervals like "5x 4min @ 72% FTP, 2min @ 52% FTP"
+      // or using seconds: "5x 30sec @ 120% FTP, 30sec @ 40% FTP" ---
       const repMatch = text.match(/(\d+)\s*x\b/i);
       if (repMatch && powSpans.length >= 2) {
         const reps = parseInt(repMatch[1], 10);
         if (Number.isFinite(reps) && reps > 0) {
-          const durMatches = Array.from(text.matchAll(/(\d+(?:\.\d+)?)\s*min/gi));
-          if (durMatches.length >= 2) {
-            const onMinutes = parseFloat(durMatches[0][1]);
-            const offMinutes = parseFloat(durMatches[1][1]);
+          // Capture durations with their units (min or sec)
+          const durMatches = Array.from(
+            text.matchAll(/(\d+(?:\.\d+)?)\s*(min|sec)/gi)
+          );
+          const durations = durMatches
+            .map((m) => {
+              const val = parseFloat(m[1]);
+              const unit = (m[2] || "").toLowerCase();
+              if (!Number.isFinite(val)) return null;
+              if (unit === "sec") return val / 60;
+              return val; // minutes
+            })
+            .filter((v) => v != null);
+
+          if (durations.length >= 2) {
+            const onMinutes = durations[0];
+            const offMinutes = durations[1];
 
             const pOn = Number(powSpans[0].getAttribute("data-value"));
             const pOff = Number(powSpans[1].getAttribute("data-value"));
