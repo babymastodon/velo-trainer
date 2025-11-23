@@ -3,9 +3,37 @@
   window.__tr_json2zwo_initialized = true;
 
   const BASE_TRAINERROAD = "https://www.trainerroad.com";
-  const TRAINERROAD_WORKOUT_REGEX = /\/app\/cycling\/workouts\/add\/(\d+)/;
+  // Allow IDs followed by / or end of path (handles ?query correctly)
+  const TRAINERROAD_WORKOUT_REGEX =
+    /\/app\/cycling\/workouts\/add\/(\d+)(?:\/|$)/;
   const TRAINERDAY_WORKOUT_REGEX = /^\/workouts\/([^/?#]+)/;
   const WHATSONZWIFT_WORKOUT_REGEX = /^\/workouts\/.+/;
+  const DEFAULT_FTP = 250;
+
+  // ---------- FTP helpers (chrome.storage.sync) ----------
+
+  function getFtp() {
+    return new Promise((resolve) => {
+      try {
+        if (!chrome || !chrome.storage || !chrome.storage.sync) {
+          resolve(DEFAULT_FTP);
+          return;
+        }
+      } catch {
+        resolve(DEFAULT_FTP);
+        return;
+      }
+
+      chrome.storage.sync.get({ftp: DEFAULT_FTP}, (data) => {
+        const v = Number(data.ftp);
+        if (!Number.isFinite(v) || v <= 0) {
+          resolve(DEFAULT_FTP);
+        } else {
+          resolve(v);
+        }
+      });
+    });
+  }
 
   // ---------- Helper: identify site ----------
 
@@ -52,11 +80,10 @@
     return 0;
   }
 
+  // IMPORTANT: never use MemberFtpPercent here; only the relative ftpPercent
   function getFtpPercent(pt) {
     if (typeof pt.FtpPercent === "number") return pt.FtpPercent;
     if (typeof pt.ftpPercent === "number") return pt.ftpPercent;
-    if (typeof pt.MemberFtpPercent === "number") return pt.MemberFtpPercent;
-    if (typeof pt.memberFtpPercent === "number") return pt.memberFtpPercent;
     return 0;
   }
 
@@ -82,7 +109,11 @@
     return samples;
   }
 
-  // ---------- Generic blocks (used by all sites) ----------
+  // ---------- Generic blocks (used by all sites for ZWO) ----------
+
+  // Blocks are:
+  // { kind: "steady", duration, power, cadence? }
+  // { kind: "rampUp"|"rampDown", duration, powerLow, powerHigh, cadence? }
 
   function buildBlocksFromSamples(samples) {
     if (!samples || samples.length < 2) return [];
@@ -172,8 +203,8 @@
     return blocks;
   }
 
-  // Segments -> blocks (TrainerDay + WhatsOnZwift)
-
+  // TrainerDay + generic segments (no cadence) -> blocks
+  // segments: [minutes, startPct, endPct?]
   function buildBlocksFromSegments(segments) {
     const blocks = [];
     if (!Array.isArray(segments)) return blocks;
@@ -244,6 +275,12 @@
     return false;
   }
 
+  // ZWO IntervalsT per spec:
+  // <IntervalsT Repeat="N" OnDuration="sec" OffDuration="sec"
+  //             OnPower="0.xx" OffPower="0.yy"
+  //             [Cadence=".."] [CadenceResting=".."] ... />
+  // Warmup/Cooldown: Duration + PowerLow/PowerHigh (+ optional Cadence).
+  // SteadyState: Duration + Power (+ optional Cadence).
   function compressToXmlBlocks(blocks) {
     const xmlBlocks = [];
     const DUR_TOL = 1;
@@ -251,21 +288,23 @@
 
     let i = 0;
     while (i < blocks.length) {
-      // Try to detect IntervalsT: [on, off] repeated >= 2 times
+      // Detect repeated steady on/off pairs → IntervalsT
       if (i + 3 < blocks.length) {
-        const on1 = blocks[i];
-        const off1 = blocks[i + 1];
+        const firstA = blocks[i];
+        const firstB = blocks[i + 1];
 
-        if (off1.kind === "steady") {
+        if (firstA.kind === "steady" && firstB.kind === "steady") {
           let repeat = 1;
           let j = i + 2;
 
           while (j + 1 < blocks.length) {
-            const onNext = blocks[j];
-            const offNext = blocks[j + 1];
+            const aNext = blocks[j];
+            const bNext = blocks[j + 1];
             if (
-              !blocksSimilar(on1, onNext, DUR_TOL, PWR_TOL) ||
-              !blocksSimilar(off1, offNext, DUR_TOL, PWR_TOL)
+              aNext.kind !== "steady" ||
+              bNext.kind !== "steady" ||
+              !blocksSimilar(firstA, aNext, DUR_TOL, PWR_TOL) ||
+              !blocksSimilar(firstB, bNext, DUR_TOL, PWR_TOL)
             ) {
               break;
             }
@@ -274,82 +313,80 @@
           }
 
           if (repeat >= 2) {
-            const onDur = Math.round(on1.duration);
-            const offDur = Math.round(off1.duration);
-            const offPower = off1.power;
+            let onBlock = firstA;
+            let offBlock = firstB;
 
-            let xmlBlock;
-            if (on1.kind === "steady") {
-              xmlBlock = {
-                type: "IntervalsT",
-                attrs: {
-                  Repeat: String(repeat),
-                  OnDuration: String(onDur),
-                  OffDuration: String(offDur),
-                  PowerOnLow: on1.power.toFixed(3),
-                  PowerOnHigh: on1.power.toFixed(3),
-                  PowerOff: offPower.toFixed(3)
-                }
-              };
-            } else if (on1.kind === "rampUp") {
-              xmlBlock = {
-                type: "IntervalsT",
-                attrs: {
-                  Repeat: String(repeat),
-                  OnDuration: String(onDur),
-                  OffDuration: String(offDur),
-                  PowerOnLow: on1.powerLow.toFixed(3),
-                  PowerOnHigh: on1.powerHigh.toFixed(3),
-                  PowerOff: offPower.toFixed(3)
-                }
-              };
-            } else if (on1.kind === "rampDown") {
-              xmlBlock = {
-                type: "IntervalsT",
-                attrs: {
-                  Repeat: String(repeat),
-                  OnDuration: String(onDur),
-                  OffDuration: String(offDur),
-                  PowerOnLow: on1.powerLow.toFixed(3),
-                  PowerOnHigh: on1.powerHigh.toFixed(3),
-                  PowerOff: offPower.toFixed(3)
-                }
-              };
+            const onDur = Math.round(onBlock.duration);
+            const offDur = Math.round(offBlock.duration);
+
+            const attrs = {
+              Repeat: String(repeat),
+              OnDuration: String(onDur),
+              OffDuration: String(offDur),
+              OnPower: onBlock.power.toFixed(8),
+              OffPower: offBlock.power.toFixed(8)
+            };
+
+            if (onBlock.cadence != null && Number.isFinite(onBlock.cadence)) {
+              attrs.Cadence = String(Math.round(onBlock.cadence));
+            }
+            if (
+              offBlock.cadence != null &&
+              Number.isFinite(offBlock.cadence)
+            ) {
+              attrs.CadenceResting = String(Math.round(offBlock.cadence));
             }
 
-            xmlBlocks.push(xmlBlock);
+            xmlBlocks.push({
+              type: "IntervalsT",
+              attrs
+            });
+
             i += repeat * 2;
             continue;
           }
         }
       }
 
+      // Fallback: output individual block
       const b = blocks[i];
       if (b.kind === "steady") {
+        const attrs = {
+          Duration: String(Math.round(b.duration)),
+          Power: b.power.toFixed(8)
+        };
+        if (b.cadence != null && Number.isFinite(b.cadence)) {
+          attrs.Cadence = String(Math.round(b.cadence));
+        }
         xmlBlocks.push({
           type: "SteadyState",
-          attrs: {
-            Duration: String(Math.round(b.duration)),
-            Power: b.power.toFixed(3)
-          }
+          attrs
         });
       } else if (b.kind === "rampUp") {
+        const attrs = {
+          Duration: String(Math.round(b.duration)),
+          PowerLow: b.powerLow.toFixed(8),
+          PowerHigh: b.powerHigh.toFixed(8)
+        };
+        if (b.cadence != null && Number.isFinite(b.cadence)) {
+          attrs.Cadence = String(Math.round(b.cadence));
+        }
         xmlBlocks.push({
           type: "Warmup",
-          attrs: {
-            Duration: String(Math.round(b.duration)),
-            PowerLow: b.powerLow.toFixed(3),
-            PowerHigh: b.powerHigh.toFixed(3)
-          }
+          attrs
         });
       } else if (b.kind === "rampDown") {
+        const attrs = {
+          Duration: String(Math.round(b.duration)),
+          PowerLow: b.powerLow.toFixed(8),
+          PowerHigh: b.powerHigh.toFixed(8)
+        };
+        if (b.cadence != null && Number.isFinite(b.cadence)) {
+          attrs.Cadence = String(Math.round(b.cadence));
+        }
         xmlBlocks.push({
           type: "Cooldown",
-          attrs: {
-            Duration: String(Math.round(b.duration)),
-            PowerLow: b.powerLow.toFixed(3),
-            PowerHigh: b.powerHigh.toFixed(3)
-          }
+          attrs
         });
       }
       i++;
@@ -358,7 +395,97 @@
     return xmlBlocks;
   }
 
-  // ---------- Metadata / metrics helpers ----------
+  // ---------- Metric helpers (computed from segments, all sites) ----------
+
+  function blocksToMetricSegments(blocks) {
+    const segs = [];
+    if (!Array.isArray(blocks)) return segs;
+    for (const b of blocks) {
+      const dur = Math.max(0, Number(b.duration) || 0);
+      if (dur <= 0) continue;
+      if (b.kind === "steady") {
+        segs.push({
+          durationSec: dur,
+          pStartRel: b.power,
+          pEndRel: b.power
+        });
+      } else if (b.kind === "rampUp" || b.kind === "rampDown") {
+        segs.push({
+          durationSec: dur,
+          pStartRel: b.powerLow,
+          pEndRel: b.powerHigh
+        });
+      }
+    }
+    return segs;
+  }
+
+  function computeMetricsFromSegments(segments, ftp) {
+    const ftpVal = Number(ftp);
+    if (
+      !Array.isArray(segments) ||
+      segments.length === 0 ||
+      !Number.isFinite(ftpVal) ||
+      ftpVal <= 0
+    ) {
+      return {
+        totalSec: 0,
+        durationMin: 0,
+        ifValue: null,
+        tss: null,
+        kj: null,
+        ftp: ftpVal > 0 ? ftpVal : null
+      };
+    }
+
+    let totalSec = 0;
+    let sumFrac = 0;
+    let sumFrac4 = 0;
+
+    for (const seg of segments) {
+      const dur = Math.max(1, Math.round(Number(seg.durationSec) || 0));
+      const p0 = Number(seg.pStartRel) || 0;
+      const p1 = Number(seg.pEndRel) || 0;
+      const dp = p1 - p0;
+
+      for (let i = 0; i < dur; i++) {
+        const tMid = (i + 0.5) / dur;
+        const frac = p0 + dp * tMid;
+        sumFrac += frac;
+        const f2 = frac * frac;
+        sumFrac4 += f2 * f2;
+        totalSec++;
+      }
+    }
+
+    if (totalSec === 0) {
+      return {
+        totalSec: 0,
+        durationMin: 0,
+        ifValue: null,
+        tss: null,
+        kj: null,
+        ftp: ftpVal
+      };
+    }
+
+    const npRel = Math.pow(sumFrac4 / totalSec, 0.25);
+    const IF = npRel;
+    const durationMin = totalSec / 60;
+    const tss = (totalSec * IF * IF) / 36;
+    const kJ = (ftpVal * sumFrac) / 1000;
+
+    return {
+      totalSec,
+      durationMin,
+      ifValue: IF,
+      tss,
+      kj: kJ,
+      ftp: ftpVal
+    };
+  }
+
+  // ---------- Metadata / category helpers ----------
 
   function cdataWrap(str) {
     if (!str) return "<![CDATA[]]>";
@@ -384,17 +511,6 @@
       s.workoutName ||
       (s.id != null ? `TrainerRoad Workout ${s.id}` : "TrainerRoad Workout");
 
-    const tss = typeof s.tss === "number" ? s.tss : null;
-    const kj = typeof s.kj === "number" ? s.kj : null;
-    const intensityFactorRaw =
-      typeof s.intensityFactor === "number" ? s.intensityFactor : null;
-    const intensityFactor =
-      intensityFactorRaw != null
-        ? intensityFactorRaw > 1
-          ? intensityFactorRaw / 100
-          : intensityFactorRaw
-        : null;
-
     let description =
       s.workoutDescription || s.goalDescription || "Converted from TrainerRoad.";
 
@@ -403,117 +519,42 @@
       name,
       description,
       category,
-      tss,
-      kj,
-      ifValue: intensityFactor,
       url
     };
   }
 
-  // Generic kJ from segments (TrainerDay + WhatsOnZwift)
-  function computeKjFromSegments(segments, ftpWatts = 250) {
-    if (!Array.isArray(segments)) return null;
-    let totalKj = 0;
-
-    for (const seg of segments) {
-      if (!Array.isArray(seg) || seg.length < 2) continue;
-      const minutes = Number(seg[0]);
-      const startPct = Number(seg[1]);
-      const endPct =
-        seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
-      if (
-        !Number.isFinite(minutes) ||
-        !Number.isFinite(startPct) ||
-        !Number.isFinite(endPct)
-      ) {
-        continue;
-      }
-      const durSec = minutes * 60;
-      const avgPct = (startPct + endPct) / 2;
-      const watts = ftpWatts * (avgPct / 100);
-      const kJ = (watts * durSec) / 1000;
-      totalKj += kJ;
-    }
-
-    return Math.round(totalKj);
-  }
-
   function buildMetaFromTrainerDay(details, url) {
     const d = details || {};
-    const title =
-      d.title || document.title || "TrainerDay Workout";
-
+    const title = d.title || document.title || "TrainerDay Workout";
     const description = d.description || "";
-
     const category = d.dominantZone || "Uncategorized";
-
-    const tss =
-      typeof d.bikeStress === "number" ? d.bikeStress : null;
-
-    const ifValue =
-      typeof d.intensity === "number" ? d.intensity : null;
-
-    const segments =
-      Array.isArray(d.segments) ? d.segments : null;
-
-    const kj = computeKjFromSegments(segments, 250);
 
     return {
       source: "TrainerDay",
       name: title,
       description: description || "Converted from TrainerDay.",
       category,
-      tss,
-      kj,
-      ifValue,
       url
     };
   }
 
-  // IF from segments (used for WhatsOnZwift; same assumption FTP=1.0)
-  function computeIfFromSegments(segments) {
-    if (!Array.isArray(segments) || segments.length === 0) return null;
-    let totalSec = 0;
-    let sum = 0;
-    for (const seg of segments) {
-      if (!Array.isArray(seg) || seg.length < 2) continue;
-      const minutes = Number(seg[0]);
-      const startPct = Number(seg[1]);
-      const endPct =
-        seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
-      if (
-        !Number.isFinite(minutes) ||
-        !Number.isFinite(startPct) ||
-        !Number.isFinite(endPct)
-      ) {
-        continue;
-      }
-      const durSec = minutes * 60;
-      const avgFrac = ((startPct + endPct) / 2) / 100; // relative to FTP
-      totalSec += durSec;
-      sum += avgFrac * durSec;
-    }
-    if (totalSec === 0) return null;
-    return sum / totalSec;
-  }
-
   // Category heuristic based on segment intensities (WhatsOnZwift)
-  function inferCategoryFromSegments(segments) {
-    if (!Array.isArray(segments) || segments.length === 0) {
+  function inferCategoryFromSegments(rawSegments) {
+    if (!Array.isArray(rawSegments) || rawSegments.length === 0) {
       return "Uncategorized";
     }
 
     const buckets = {
-      recovery: 0,   // < 55%
-      base: 0,       // 55–75%
-      tempo: 0,      // 75–88%
-      sweetSpot: 0,  // 88–95%
-      threshold: 0,  // 95–105%
-      vo2: 0,        // 105–120%
-      hiit: 0        // > 120%
+      recovery: 0,
+      base: 0,
+      tempo: 0,
+      sweetSpot: 0,
+      threshold: 0,
+      vo2: 0,
+      hiit: 0
     };
 
-    for (const seg of segments) {
+    for (const seg of rawSegments) {
       if (!Array.isArray(seg) || seg.length < 2) continue;
       const minutes = Number(seg[0]);
       const startPct = Number(seg[1]);
@@ -527,7 +568,7 @@
         continue;
       }
       const durSec = minutes * 60;
-      const avgFrac = ((startPct + endPct) / 2) / 100; // 0–?
+      const avgFrac = ((startPct + endPct) / 2) / 100;
       const x = avgFrac;
 
       if (x < 0.55) buckets.recovery += durSec;
@@ -589,18 +630,7 @@
     return "";
   }
 
-  function extractWozStressPoints() {
-    const ps = Array.from(document.querySelectorAll("p"));
-    for (const p of ps) {
-      const txt = p.textContent || "";
-      if (txt.includes("Stress points")) {
-        const m = txt.match(/Stress points\s*:?\s*(\d+)/i);
-        if (m) return Number(m[1]);
-      }
-    }
-    return null;
-  }
-
+  // Returns array of { minutes, startPct, endPct, cadence }
   function extractWozSegmentsFromDom() {
     const container = document.querySelector("div.order-2");
     if (!container) {
@@ -612,10 +642,26 @@
 
     for (const bar of bars) {
       const text = bar.textContent || "";
+
+      // First try minutes, then seconds
+      let minutes = null;
       const minMatch = text.match(/(\d+)\s*min/i);
-      if (!minMatch) continue;
-      const minutes = Number(minMatch[1]);
+      if (minMatch) {
+        minutes = Number(minMatch[1]);
+      } else {
+        const secMatch = text.match(/(\d+)\s*sec/i);
+        if (secMatch) {
+          const secs = Number(secMatch[1]);
+          if (Number.isFinite(secs)) {
+            minutes = secs / 60;
+          }
+        }
+      }
+
       if (!Number.isFinite(minutes) || minutes <= 0) continue;
+
+      const cadenceMatch = text.match(/@\s*(\d+)\s*rpm/i);
+      const cadence = cadenceMatch ? Number(cadenceMatch[1]) : null;
 
       const powSpans = bar.querySelectorAll(
         'span[data-unit="relpow"][data-value]'
@@ -624,14 +670,23 @@
       if (powSpans.length === 1) {
         const pct = Number(powSpans[0].getAttribute("data-value"));
         if (!Number.isFinite(pct)) continue;
-        segments.push([minutes, pct, pct]);
+        segments.push({
+          minutes,
+          startPct: pct,
+          endPct: pct,
+          cadence
+        });
       } else if (powSpans.length >= 2) {
         const pctLow = Number(powSpans[0].getAttribute("data-value"));
         const pctHigh = Number(powSpans[1].getAttribute("data-value"));
         if (!Number.isFinite(pctLow) || !Number.isFinite(pctHigh)) continue;
-        segments.push([minutes, pctLow, pctHigh]);
+        segments.push({
+          minutes,
+          startPct: pctLow,
+          endPct: pctHigh,
+          cadence
+        });
       } else {
-        // No relpow spans; skip this bar
         continue;
       }
     }
@@ -639,30 +694,24 @@
     return segments;
   }
 
-  function buildMetaFromWhatsonZwift(segments, url) {
+  function buildMetaFromWhatsonZwift(rawSegments, url) {
     const name = extractWozTitle();
     const rawDescription = extractWozDescription();
-    const tss = extractWozStressPoints();
-    const ifValue = computeIfFromSegments(segments);
-    const kj = computeKjFromSegments(segments, 250);
-    const category = inferCategoryFromSegments(segments);
-
-    const description =
-      rawDescription || "Converted from WhatsOnZwift.";
+    const category = inferCategoryFromSegments(rawSegments);
+    const description = rawDescription || "Converted from WhatsOnZwift.";
 
     return {
       source: "WhatsOnZwift",
       name,
       description,
       category,
-      tss,
-      kj,
-      ifValue,
       url
     };
   }
 
-  function toZwoXmlFromBlocksAndMeta(blocks, meta) {
+  // ---------- ZWO XML builder ----------
+
+  function toZwoXmlFromBlocksAndMeta(blocks, meta, metrics) {
     const xmlBlocks = compressToXmlBlocks(blocks);
 
     const source = meta.source || "Unknown";
@@ -670,41 +719,42 @@
     const category = meta.category || "Uncategorized";
     let description = meta.description || "";
 
-    const tss = meta.tss;
-    const kj = meta.kj;
-    const ifValue = meta.ifValue;
-    const url = meta.url;
+    const tss = metrics && typeof metrics.tss === "number" ? metrics.tss : null;
+    const kj = metrics && typeof metrics.kj === "number" ? metrics.kj : null;
+    const ifValue =
+      metrics && typeof metrics.ifValue === "number" ? metrics.ifValue : null;
+    const durationMin =
+      metrics && typeof metrics.durationMin === "number"
+        ? metrics.durationMin
+        : null;
+    const ftp =
+      metrics && typeof metrics.ftp === "number" ? metrics.ftp : null;
 
-    // Total workout duration from all blocks
-    const totalDurationSec = blocks.reduce(
-      (sum, b) => sum + (Number(b.duration) || 0),
-      0
-    );
-    const durationMinutes =
-      totalDurationSec > 0 ? Math.round(totalDurationSec / 60) : null;
+    const metricsList = [];
+    if (tss != null) metricsList.push(`TSS: ${Math.round(tss)}`);
+    if (kj != null) metricsList.push(`kJ: ${Math.round(kj)}`);
+    if (ifValue != null) metricsList.push(`IF: ${ifValue.toFixed(2)}`);
+    if (durationMin != null)
+      metricsList.push(`Duration: ${Math.round(durationMin)} min`);
+    if (ftp != null) metricsList.push(`FTP: ${Math.round(ftp)} W`);
 
-    const metrics = [];
-    if (typeof tss === "number") metrics.push(`TSS: ${tss}`);
-    if (typeof kj === "number") metrics.push(`kJ: ${kj}`);
-    if (typeof ifValue === "number") metrics.push(`IF: ${ifValue.toFixed(2)}`);
-    if (durationMinutes != null)
-      metrics.push(`Duration: ${durationMinutes} min`);
-
-    if (metrics.length > 0) {
+    if (metricsList.length > 0) {
       description +=
-        (description ? "\n\n" : "") + `Metrics: ${metrics.join(", ")}`;
+        (description ? "\n\n" : "") + `Metrics: ${metricsList.join(", ")}`;
     }
 
     const tags = [];
     tags.push({name: source});
     tags.push({name: category});
-    if (typeof tss === "number") tags.push({name: `TSS ${tss}`});
-    if (typeof kj === "number") tags.push({name: `kJ ${kj}`});
-    if (typeof ifValue === "number")
+    if (tss != null) tags.push({name: `TSS ${Math.round(tss)}`});
+    if (kj != null) tags.push({name: `kJ ${Math.round(kj)}`});
+    if (ifValue != null)
       tags.push({name: `IF ${ifValue.toFixed(2)}`});
-    if (durationMinutes != null)
-      tags.push({name: `Duration:${durationMinutes}min`});
-    if (url) tags.push({name: `URL:${url}`});
+    if (durationMin != null)
+      tags.push({name: `Duration:${Math.round(durationMin)}min`});
+    if (ftp != null)
+      tags.push({name: `FTP:${Math.round(ftp)}`});
+    if (meta.url) tags.push({name: `URL:${meta.url}`});
 
     const blocksXml = xmlBlocks
       .map((b) => {
@@ -719,7 +769,7 @@
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <workout_file>
-  <author>${source} json2zwo</author>
+  <author>${source} zwo-downloader</author>
   <name>${name}</name>
   <description>${cdataWrap(description)}</description>
   <category>${category}</category>
@@ -760,6 +810,8 @@ ${blocksXml}
     const workoutId = match[1];
 
     try {
+      const ftp = await getFtp();
+
       const chartUrl = `${BASE_TRAINERROAD}/app/api/workouts/${workoutId}/chart-data`;
       const summaryUrl = `${BASE_TRAINERROAD}/app/api/workouts/${workoutId}/summary?withDifficultyRating=true`;
 
@@ -790,9 +842,11 @@ ${blocksXml}
 
       const samples = buildSamples(courseData);
       const blocks = buildBlocksFromSamples(samples);
+      const metricSegments = blocksToMetricSegments(blocks);
+      const metrics = computeMetricsFromSegments(metricSegments, ftp);
       const meta = buildMetaFromTrainerRoad(summary, window.location.href);
 
-      const zwoXml = toZwoXmlFromBlocksAndMeta(blocks, meta);
+      const zwoXml = toZwoXmlFromBlocksAndMeta(blocks, meta, metrics);
       const baseName = meta.name || "Workout";
       const safeBase = baseName.replace(/[^\w\-]+/g, "_");
       const filename = `${safeBase}.zwo`;
@@ -819,11 +873,9 @@ ${blocksXml}
     const slug = match[1];
 
     try {
+      const ftp = await getFtp();
       const url = window.location.href;
-      console.log(
-        "[TR2ZWO] [TrainerDay] Fetching workout by slug:",
-        slug
-      );
+      console.log("[TR2ZWO] [TrainerDay] Fetching workout by slug:", slug);
       const details = await fetchTrainerDayWorkoutBySlug(slug);
 
       const segments =
@@ -838,9 +890,11 @@ ${blocksXml}
       }
 
       const blocks = buildBlocksFromSegments(segments);
+      const metricSegments = blocksToMetricSegments(blocks);
+      const metrics = computeMetricsFromSegments(metricSegments, ftp);
       const meta = buildMetaFromTrainerDay(details, url);
 
-      const zwoXml = toZwoXmlFromBlocksAndMeta(blocks, meta);
+      const zwoXml = toZwoXmlFromBlocksAndMeta(blocks, meta, metrics);
       const baseName = meta.name || "Workout";
       const safeBase = baseName.replace(/[^\w\-]+/g, "_");
       const filename = `${safeBase}.zwo`;
@@ -865,20 +919,83 @@ ${blocksXml}
     }
 
     try {
+      const ftp = await getFtp();
       const url = window.location.href;
 
-      const segments = extractWozSegmentsFromDom();
-      if (!segments || segments.length === 0) {
+      const wozSegments = extractWozSegmentsFromDom();
+      if (!wozSegments || wozSegments.length === 0) {
         console.error(
           "[TR2ZWO] [WhatsOnZwift] No segments extracted from DOM."
         );
         return;
       }
 
-      const blocks = buildBlocksFromSegments(segments);
-      const meta = buildMetaFromWhatsonZwift(segments, url);
+      // For category heuristic we only need minutes + %FTP
+      const rawSegmentsForCategory = wozSegments.map((s) => [
+        s.minutes,
+        s.startPct,
+        s.endPct
+      ]);
 
-      const zwoXml = toZwoXmlFromBlocksAndMeta(blocks, meta);
+      // Build blocks with cadence info
+      const blocks = [];
+      for (const seg of wozSegments) {
+        const minutes = Number(seg.minutes);
+        const startPct = Number(seg.startPct);
+        const endPct =
+          seg.endPct != null ? Number(seg.endPct) : Number(seg.startPct);
+        const cadence =
+          seg.cadence != null && Number.isFinite(seg.cadence)
+            ? Number(seg.cadence)
+            : null;
+
+        if (
+          !Number.isFinite(minutes) ||
+          !Number.isFinite(startPct) ||
+          !Number.isFinite(endPct)
+        ) {
+          continue;
+        }
+
+        const duration = minutes * 60;
+        const pStart = startPct / 100;
+        const pEnd = endPct / 100;
+        if (duration <= 0) continue;
+
+        if (Math.abs(pStart - pEnd) < 1e-6) {
+          blocks.push({
+            kind: "steady",
+            duration,
+            power: pStart,
+            cadence
+          });
+        } else if (pEnd > pStart) {
+          blocks.push({
+            kind: "rampUp",
+            duration,
+            powerLow: pStart,
+            powerHigh: pEnd,
+            cadence
+          });
+        } else {
+          blocks.push({
+            kind: "rampDown",
+            duration,
+            powerLow: pStart,
+            powerHigh: pEnd,
+            cadence
+          });
+        }
+      }
+
+      const metricSegments = blocksToMetricSegments(blocks);
+      const metrics = computeMetricsFromSegments(metricSegments, ftp);
+      const meta = buildMetaFromWhatsonZwift(
+        rawSegmentsForCategory,
+        url
+      );
+
+      const zwoXml = toZwoXmlFromBlocksAndMeta(blocks, meta, metrics);
       const baseName = meta.name || "Workout";
       const safeBase = baseName.replace(/[^\w\-]+/g, "_");
       const filename = `${safeBase}.zwo`;
@@ -916,7 +1033,11 @@ ${blocksXml}
   };
 
   // Listen for messages from background.js (toolbar icon click)
-  if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.runtime &&
+    chrome.runtime.onMessage
+  ) {
     chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
       if (msg && msg.type === "TR2ZWO_DOWNLOAD") {
         generateZwoForCurrentPage(true);

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ZWO Downloader",
-  "description": "Download any TrainerRoad or TrainerDay workout as a ZWO file, with ramps, intervals, metadata, and category.",
-  "version": "1.3.0",
+  "version": "0.2.0",
+  "description": "Download structured Zwift .zwo workouts from TrainerRoad, TrainerDay, and WhatsOnZwift.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -16,6 +16,9 @@
   "background": {
     "service_worker": "background.js"
   },
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://www.trainerroad.com/*",
     "https://app.trainerday.com/*",
@@ -25,14 +28,15 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.trainerroad.com/app/cycling/workouts/add/*",
-        "https://app.trainerday.com/workouts/*",
-        "https://whatsonzwift.com/workouts/*"
+        "https://www.trainerroad.com/*",
+        "https://app.trainerday.com/*",
+        "https://whatsonzwift.com/*"
       ],
       "js": [
         "content.js"
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "options_page": "options.html"
 }
