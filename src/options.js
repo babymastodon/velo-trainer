@@ -81,12 +81,26 @@ function setupFtpInput() {
   };
 
   let debounceTimer = null;
+
   input.addEventListener("input", () => {
-    const raw = input.value;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      save(raw);
-    }, 400);
+      save(input.value);
+    }, 2000); // 2 seconds of no typing
+  });
+
+  // Save on blur (lose focus)
+  input.addEventListener("blur", () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    save(input.value);
+  });
+
+  // Save on Enter
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      save(input.value);
+    }
   });
 }
 
