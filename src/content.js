@@ -895,7 +895,59 @@ ${blocksXml}
 
   // ---------- Download helper ----------
 
-  function downloadZwo(zwoXml, filename) {
+  async function downloadZwo(zwoXml, filename) {
+    // First, try to ask the background script to save into the user-selected folder.
+    let handledByDirectory = false;
+
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+        handledByDirectory = await new Promise((resolve) => {
+          try {
+            chrome.runtime.sendMessage(
+              {
+                type: "TR2ZWO_SAVE_TO_DIR",
+                xml: zwoXml,
+                filename
+              },
+              (resp) => {
+                if (chrome.runtime && chrome.runtime.lastError) {
+                  console.warn(
+                    "[ZWO Downloader] Background save failed or not available:",
+                    chrome.runtime.lastError.message
+                  );
+                  resolve(false);
+                  return;
+                }
+
+                if (resp && resp.ok) {
+                  console.log("[ZWO Downloader] Saved ZWO file successfully:", filename);
+                  resolve(true);
+                } else {
+                  console.warn(
+                    "[ZWO Downloader] Background reported failure saving ZWO:",
+                    resp?.reason || resp
+                  );
+                  resolve(false);
+                }
+              }
+            );
+          } catch (e) {
+            console.warn("[ZWO Downloader] Error sending save message:", e);
+            resolve(false);
+          }
+        });
+      }
+    } catch (err) {
+      console.warn("[ZWO Downloader] Error during background save attempt:", err);
+      handledByDirectory = false;
+    }
+
+    if (handledByDirectory) {
+      // Saved successfully to the user-selected directory; nothing else to do.
+      return;
+    }
+
+    // Fallback: original behavior – download to default browser Downloads folder via <a download>
     const blob = new Blob([zwoXml], {type: "application/xml"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -975,7 +1027,7 @@ ${blocksXml}
       console.info("===== End ZWO XML =====");
 
       if (shouldDownload) {
-        downloadZwo(zwoXml, filename);
+        await downloadZwo(zwoXml, filename);
       }
 
       return true;
@@ -1026,7 +1078,7 @@ ${blocksXml}
       console.info("===== End ZWO XML =====");
 
       if (shouldDownload) {
-        downloadZwo(zwoXml, filename);
+        await downloadZwo(zwoXml, filename);
       }
 
       return true;
@@ -1130,7 +1182,7 @@ ${blocksXml}
       console.info("===== End ZWO XML =====");
 
       if (shouldDownload) {
-        downloadZwo(zwoXml, filename);
+        await downloadZwo(zwoXml, filename);
       }
 
       return true;
