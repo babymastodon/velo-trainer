@@ -61,7 +61,6 @@ const bikeConnectBtn = document.getElementById("bikeConnectBtn");
 const bikeStatusDot = document.getElementById("bikeStatusDot");
 const hrConnectBtn = document.getElementById("hrConnectBtn");
 const hrStatusDot = document.getElementById("hrStatusDot");
-const bikeBatteryLabel = document.getElementById("bikeBatteryLabel");
 const hrBatteryLabel = document.getElementById("hrBatteryLabel");
 const logsBtn = document.getElementById("logsBtn");
 const soundBtn = document.getElementById("soundBtn");
@@ -846,8 +845,6 @@ async function requestBikeDevice() {
     filters: [{services: [FTMS_SERVICE_UUID]}],
     optionalServices: [
       FTMS_SERVICE_UUID,
-      HEART_RATE_SERVICE_UUID,
-      BATTERY_SERVICE_UUID,
     ],
   };
   logDebug(
@@ -1261,20 +1258,6 @@ function parseHrMeasurement(dataView) {
 
 // --------------------------- Battery reporting ---------------------------
 
-function updateBikeBatteryLabel() {
-  if (!bikeBatteryLabel) return;
-  if (bikeBatteryPercent == null) {
-    bikeBatteryLabel.textContent = "";
-    bikeBatteryLabel.classList.remove("battery-low");
-    return;
-  }
-  bikeBatteryLabel.textContent = `${bikeBatteryPercent}%`;
-  bikeBatteryLabel.classList.toggle(
-    "battery-low",
-    bikeBatteryPercent <= 20
-  );
-}
-
 function updateHrBatteryLabel() {
   if (!hrBatteryLabel) return;
   if (hrBatteryPercent == null) {
@@ -1393,7 +1376,7 @@ async function connectToDevice(device, type) {
       });
   }
 
-  if (batteryService) {
+  if (type === "hr" && batteryService) {
     try {
       const batteryLevelChar = await batteryService.getCharacteristic(
         BATTERY_LEVEL_CHAR
@@ -1401,13 +1384,8 @@ async function connectToDevice(device, type) {
       const val = await batteryLevelChar.readValue();
       const pct = val.getUint8(0);
       logDebug(`${type.toUpperCase()} battery: ${pct}%`);
-      if (type === "bike") {
-        bikeBatteryPercent = pct;
-        updateBikeBatteryLabel();
-      } else {
-        hrBatteryPercent = pct;
-        updateHrBatteryLabel();
-      }
+      hrBatteryPercent = pct;
+      updateHrBatteryLabel();
     } catch (err) {
       logDebug("Battery read failed: " + err);
     }
