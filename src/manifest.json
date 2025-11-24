@@ -1,32 +1,38 @@
 {
   "manifest_version": 3,
   "name": "ZWO Downloader",
-  "version": "0.2.0",
-  "description": "Download structured Zwift .zwo workouts from TrainerRoad, TrainerDay, and WhatsOnZwift.",
+  "version": "0.3.0",
+  "description": "Download structured Zwift .zwo workouts from TrainerRoad, TrainerDay, and WhatsOnZwift. Contains an internal BLE test page for Wahoo KICKR.",
+  
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+
   "action": {
     "default_title": "Download ZWO",
     "default_icon": "icons/icon128.png"
   },
+
   "background": {
     "service_worker": "background.js"
   },
+
   "permissions": [
     "storage",
     "scripting",
     "activeTab"
   ],
+
   "host_permissions": [
     "https://www.trainerroad.com/*",
     "https://app.trainerday.com/*",
     "https://app.api.trainerday.com/*",
     "https://whatsonzwift.com/*"
   ],
+
   "content_scripts": [
     {
       "matches": [
@@ -34,11 +40,23 @@
         "https://app.trainerday.com/*",
         "https://whatsonzwift.com/*"
       ],
-      "js": [
-        "content.js"
-      ],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],
-  "options_page": "options.html"
+
+  "options_page": "options.html",
+
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "workout.html",
+        "workout.js",
+        "kickr-test.html",
+        "kickr-test.js"
+      ],
+      "matches": ["chrome-extension://*/*"]
+    }
+  ]
 }
+

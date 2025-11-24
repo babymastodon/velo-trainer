@@ -1,5 +1,3 @@
-// options.js
-
 const DEFAULT_FTP = 250;
 
 // ---------------- Global state ----------------
@@ -15,6 +13,9 @@ let currentExpandedKey = null; // fileName of expanded row (or null)
 
 let currentSortKey = "kjAdj";   // "if", "tss", "kjAdj", "duration", "name"
 let currentSortDir = "asc";     // "asc" | "desc"
+
+// NEW: track which workout is selected for workout.html
+let selectedWorkoutFileName = null;
 
 // ---------------- FTP helpers (chrome.storage.sync) ----------------
 
@@ -157,6 +158,27 @@ async function ensureDirPermission(handle) {
 
   const result = await handle.requestPermission({mode: "readwrite"});
   return result === "granted";
+}
+
+// NEW: load selected workout (for workout.html) from local storage
+async function loadSelectedWorkoutFromStorage() {
+  try {
+    if (!chrome || !chrome.storage || !chrome.storage.local) {
+      selectedWorkoutFileName = null;
+      return;
+    }
+  } catch {
+    selectedWorkoutFileName = null;
+    return;
+  }
+
+  return new Promise((resolve) => {
+    chrome.storage.local.get({selectedWorkout: null}, (data) => {
+      const sw = data.selectedWorkout;
+      selectedWorkoutFileName = sw && sw.fileName ? sw.fileName : null;
+      resolve();
+    });
+  });
 }
 
 // ---------------- Metrics / category helpers ----------------
@@ -469,6 +491,32 @@ function recomputeKjAndRender() {
   renderWorkoutManager();
 }
 
+// NEW: send selected workout info to workout.html and open it
+function startWorkoutFromOptions(workoutMeta) {
+  try {
+    if (!chrome || !chrome.storage || !chrome.storage.local || !chrome.runtime) {
+      alert("Starting workouts is only available inside the extension.");
+      return;
+    }
+  } catch {
+    alert("Starting workouts is only available inside the extension.");
+    return;
+  }
+
+  const payload = {
+    name: workoutMeta.name,
+    fileName: workoutMeta.fileName,
+    totalSec: workoutMeta.totalSec,
+    segmentsForMetrics: workoutMeta.segmentsForMetrics || [],
+    ftpAtSelection: currentFtp
+  };
+
+  chrome.storage.local.set({selectedWorkout: payload}, () => {
+    const url = chrome.runtime.getURL("workout.html");
+    window.location.href = url;
+  });
+}
+
 // ---------------- Filtering / sorting helpers ----------------
 
 function getAdjustedKj(workout) {
@@ -696,9 +744,31 @@ function renderWorkoutManager() {
       const detailDiv = document.createElement("div");
       detailDiv.className = "workout-detail";
 
+      // NEW: header row inside detail with Start workout button aligned right
+      const headerRow = document.createElement("div");
+      headerRow.style.display = "flex";
+      headerRow.style.justifyContent = "flex-end";
+      headerRow.style.marginBottom = "4px";
+
+      const startBtn = document.createElement("button");
+      startBtn.type = "button";
+      startBtn.className = "start-workout-btn";
+      startBtn.textContent = "Start workout";
+      startBtn.title = "Open workout page and run this workout.";
+      startBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        startWorkoutFromOptions(w);
+      });
+
+      headerRow.appendChild(startBtn);
+      detailDiv.appendChild(headerRow);
+
+      // existing description below header
       if (w.description && w.description.trim()) {
         const descHtml = w.description.replace(/\n/g, "<br>");
-        detailDiv.innerHTML = descHtml;
+        const descContainer = document.createElement("div");
+        descContainer.innerHTML = descHtml;
+        detailDiv.appendChild(descContainer);
       } else {
         detailDiv.textContent = "(No description)";
       }
@@ -1033,9 +1103,23 @@ async function rescanWorkouts() {
     dirCurrentEl.textContent = currentDirHandle.name || "(selected folder)";
   }
 
+  // ensure we know which workout was previously selected for workout.html
+  await loadSelectedWorkoutFromStorage();
+
   currentExpandedKey = null;
   currentWorkouts = await scanWorkoutsFromDirectory(currentDirHandle);
   refreshCategoryFilter();
+
+  // if a selected workout exists, expand that row when we render
+  if (selectedWorkoutFileName) {
+    const match = currentWorkouts.find(
+      (w) => w.fileName === selectedWorkoutFileName
+    );
+    if (match) {
+      currentExpandedKey = match.fileName || match.name;
+    }
+  }
+
   renderWorkoutManager();
 }
 
