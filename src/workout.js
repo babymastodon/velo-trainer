@@ -38,7 +38,8 @@ const ZWO_DIR_KEY = "dirHandle"; // same key used in options.js for the ZWO fold
 const STORAGE_SELECTED_WORKOUT = "selectedWorkout";
 const STORAGE_ACTIVE_STATE = "activeWorkoutState";
 const STORAGE_SOUND_ENABLED = "soundEnabled";
-const STORAGE_LAST_DEVICE_ID = "lastKickrDeviceId";
+const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
+const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
 
 // Auto-pause after 1 second of 0 power
 const AUTO_PAUSE_POWER_ZERO_SEC = 1;
@@ -100,17 +101,25 @@ const pickerWorkoutTbody = document.getElementById("pickerWorkoutTbody");
 
 
 // --------------------------- State ---------------------------
+// Per-device BLE handles
+const bikeState = {
+  device: null,
+  server: null,
+  ftmsService: null,
+  indoorBikeDataChar: null,
+  controlPointChar: null,
+  batteryService: null,
+};
 
-// BLE
-let bluetoothDevice = null;
-let gattServer = null;
-let ftmsService = null;
-let indoorBikeDataChar = null;
-let ftmsControlPointChar = null;
-let heartRateService = null;
-let hrMeasurementChar = null;
-let batteryService = null;
+const hrState = {
+  device: null,
+  server: null,
+  hrService: null,
+  measurementChar: null,
+  batteryService: null,
+};
 
+// Legacy flags and battery values used elsewhere in the UI
 let isBikeConnecting = false;
 let isBikeConnected = false;
 let isHrAvailable = false;
@@ -384,6 +393,90 @@ async function loadZwoDirHandle() {
     req.onerror = () => reject(req.error);
   });
 }
+
+function loadSavedBleDeviceIds() {
+  return new Promise((resolve) => {
+    try {
+      if (!chrome || !chrome.storage || !chrome.storage.local) {
+        resolve({bikeId: null, hrId: null});
+        return;
+      }
+    } catch {
+      resolve({bikeId: null, hrId: null});
+      return;
+    }
+
+    chrome.storage.local.get(
+      {
+        [STORAGE_LAST_BIKE_DEVICE_ID]: null,
+        [STORAGE_LAST_HR_DEVICE_ID]: null,
+      },
+      (data) => {
+        resolve({
+          bikeId: data[STORAGE_LAST_BIKE_DEVICE_ID],
+          hrId: data[STORAGE_LAST_HR_DEVICE_ID],
+        });
+      }
+    );
+  });
+}
+
+async function maybeReconnectSavedDevicesOnLoad() {
+  if (!navigator.bluetooth || !navigator.bluetooth.getDevices) {
+    logDebug("Web Bluetooth getDevices() not supported, skipping auto-reconnect.");
+    return;
+  }
+
+  const {bikeId, hrId} = await loadSavedBleDeviceIds();
+  if (!bikeId && !hrId) {
+    logDebug("No saved BLE device IDs, skipping auto-reconnect.");
+    return;
+  }
+
+  let devices;
+  try {
+    devices = await navigator.bluetooth.getDevices();
+  } catch (err) {
+    logDebug("getDevices() failed: " + err);
+    return;
+  }
+
+  logDebug(`getDevices() returned ${devices.length} devices.`);
+
+  const bikeDevice = bikeId
+    ? devices.find((d) => d.id === bikeId)
+    : null;
+  const hrDevice = hrId
+    ? devices.find((d) => d.id === hrId)
+    : null;
+
+  // Try to reconnect the bike
+  if (bikeDevice) {
+    logDebug("Found previously paired bike, attempting reconnect…");
+    setBikeStatus("connecting");
+    connectToDevice(bikeDevice, "bike")
+      .then(() => sendTrainerState(true))
+      .catch((err) => {
+        logDebug("Auto-reconnect failed for bike: " + err);
+        setBikeStatus("error");
+      });
+  } else if (bikeId) {
+    logDebug("Saved bike ID not available in getDevices() (permission revoked?).");
+  }
+
+  // Try to reconnect the HRM
+  if (hrDevice) {
+    logDebug("Found previously paired HRM, attempting reconnect…");
+    setHrStatus("connecting");
+    connectToDevice(hrDevice, "hr").catch((err) => {
+      logDebug("Auto-reconnect failed for HRM: " + err);
+      setHrStatus("error");
+    });
+  } else if (hrId) {
+    logDebug("Saved HRM ID not available in getDevices() (permission revoked?).");
+  }
+}
+
 
 // --------------------------- Pre-select directory messages (placeholders) ---------------------------
 
@@ -921,118 +1014,6 @@ function nowSec() {
   return performance.now() / 1000;
 }
 
-async function sendFtmsControlPoint(opCode, sint16Param /* or null */) {
-  if (!ftmsControlPointChar) {
-    logDebug("FTMS CP write attempted, but characteristic not ready.");
-    throw new Error("FTMS Control Point characteristic not ready");
-  }
-
-  let buffer;
-  if (sint16Param == null) {
-    buffer = new Uint8Array([opCode]).buffer;
-  } else {
-    buffer = new ArrayBuffer(3);
-    const view = new DataView(buffer);
-    view.setUint8(0, opCode);
-    view.setInt16(1, sint16Param, true);
-  }
-
-  logDebug(
-    `FTMS CP -> opCode=0x${opCode.toString(16)}, param=${sint16Param ?? "none"
-    }`
-  );
-
-  const fn =
-    ftmsControlPointChar.writeValueWithResponse ||
-    ftmsControlPointChar.writeValue;
-  await fn.call(ftmsControlPointChar, buffer);
-}
-
-async function sendErgSetpointRaw(targetWatts) {
-  if (!ftmsControlPointChar) return;
-  const val = Math.max(0, Math.min(2000, targetWatts | 0));
-  try {
-    await sendFtmsControlPoint(FTMS_OPCODES.setTargetPower, val);
-    logDebug(`ERG target → ${val} W`);
-  } catch (err) {
-    logDebug("Failed to set ERG target: " + err);
-  }
-}
-
-async function sendResistanceLevelRaw(level) {
-  if (!ftmsControlPointChar) return;
-  const clamped = Math.max(0, Math.min(100, level | 0));
-  const tenth = clamped * 10;
-  try {
-    await sendFtmsControlPoint(
-      FTMS_OPCODES.setTargetResistanceLevel,
-      tenth
-    );
-    logDebug(`Resistance level → ${clamped}`);
-  } catch (err) {
-    logDebug("Failed to set resistance: " + err);
-  }
-}
-
-function desiredTrainerState() {
-  if (!isBikeConnected || !ftmsControlPointChar) return null;
-
-  if (mode === "workout") {
-    const target = getCurrentTargetPower();
-    if (target == null) return null;
-    return {kind: "erg", value: target};
-  }
-  if (mode === "erg") {
-    return {kind: "erg", value: manualErgTarget};
-  }
-  if (mode === "resistance") {
-    return {kind: "resistance", value: manualResistance};
-  }
-  return null;
-}
-
-async function sendTrainerState(force = false) {
-  const st = desiredTrainerState();
-  if (!st) return;
-
-  const tNow = nowSec();
-
-  if (st.kind === "erg") {
-    const target = Math.round(st.value);
-    const needsSend =
-      force ||
-      lastTrainerMode !== "erg" ||
-      lastErgTargetSent !== target ||
-      tNow - lastErgSendTs >= TRAINER_SEND_MIN_INTERVAL_SEC;
-
-    if (needsSend) {
-      logDebug(
-        `TrainerState: ERG, target=${target}, force=${force}, lastTarget=${lastErgTargetSent}, lastMode=${lastTrainerMode}`
-      );
-      await sendErgSetpointRaw(target);
-      lastTrainerMode = "erg";
-      lastErgTargetSent = target;
-      lastErgSendTs = tNow;
-    }
-  } else if (st.kind === "resistance") {
-    const target = Math.round(st.value);
-    const needsSend =
-      force ||
-      lastTrainerMode !== "resistance" ||
-      lastResistanceSent !== target ||
-      tNow - lastResistanceSendTs >= TRAINER_SEND_MIN_INTERVAL_SEC;
-
-    if (needsSend) {
-      logDebug(
-        `TrainerState: RESISTANCE, level=${target}, force=${force}, lastLevel=${lastResistanceSent}, lastMode=${lastTrainerMode}`
-      );
-      await sendResistanceLevelRaw(target);
-      lastTrainerMode = "resistance";
-      lastResistanceSent = target;
-      lastResistanceSendTs = tNow;
-    }
-  }
-}
 
 // --------------------------- Auto-start helper ---------------------------
 
@@ -1315,172 +1296,448 @@ function updateHrBatteryLabel() {
 }
 
 // --------------------------- BLE connect ---------------------------
+async function sendFtmsControlPoint(opCode, sint16Param /* or null */) {
+  const cpChar = bikeState.controlPointChar;
+  if (!cpChar) {
+    logDebug("FTMS CP write attempted, but bike control point characteristic not ready.");
+    throw new Error("FTMS Control Point characteristic not ready");
+  }
+
+  let buffer;
+  if (sint16Param == null) {
+    buffer = new Uint8Array([opCode]).buffer;
+  } else {
+    buffer = new ArrayBuffer(3);
+    const view = new DataView(buffer);
+    view.setUint8(0, opCode);
+    view.setInt16(1, sint16Param, true);
+  }
+
+  logDebug(
+    `FTMS CP -> opCode=0x${opCode.toString(16)}, param=${sint16Param ?? "none"}`
+  );
+
+  const fn = cpChar.writeValueWithResponse || cpChar.writeValue;
+  await fn.call(cpChar, buffer);
+}
+
+async function sendErgSetpointRaw(targetWatts) {
+  if (!bikeState.controlPointChar) return;
+  const val = Math.max(0, Math.min(2000, targetWatts | 0));
+  try {
+    await sendFtmsControlPoint(FTMS_OPCODES.setTargetPower, val);
+    logDebug(`ERG target → ${val} W`);
+  } catch (err) {
+    logDebug("Failed to set ERG target: " + err);
+  }
+}
+
+async function sendResistanceLevelRaw(level) {
+  if (!bikeState.controlPointChar) return;
+  const clamped = Math.max(0, Math.min(100, level | 0));
+  const tenth = clamped * 10;
+  try {
+    await sendFtmsControlPoint(FTMS_OPCODES.setTargetResistanceLevel, tenth);
+    logDebug(`Resistance level → ${clamped}`);
+  } catch (err) {
+    logDebug("Failed to set resistance: " + err);
+  }
+}
+
+function desiredTrainerState() {
+  if (!isBikeConnected || !bikeState.controlPointChar) return null;
+
+  if (mode === "workout") {
+    const target = getCurrentTargetPower();
+    if (target == null) return null;
+    return {kind: "erg", value: target};
+  }
+  if (mode === "erg") {
+    return {kind: "erg", value: manualErgTarget};
+  }
+  if (mode === "resistance") {
+    return {kind: "resistance", value: manualResistance};
+  }
+  return null;
+}
+
+async function sendTrainerState(force = false) {
+  const st = desiredTrainerState();
+  if (!st) return;
+
+  const tNow = nowSec();
+
+  if (st.kind === "erg") {
+    const target = Math.round(st.value);
+    const needsSend =
+      force ||
+      lastTrainerMode !== "erg" ||
+      lastErgTargetSent !== target ||
+      tNow - lastErgSendTs >= TRAINER_SEND_MIN_INTERVAL_SEC;
+
+    if (needsSend) {
+      logDebug(
+        `TrainerState: ERG, target=${target}, force=${force}, lastTarget=${lastErgTargetSent}, lastMode=${lastTrainerMode}`
+      );
+      await sendErgSetpointRaw(target);
+      lastTrainerMode = "erg";
+      lastErgTargetSent = target;
+      lastErgSendTs = tNow;
+    }
+  } else if (st.kind === "resistance") {
+    const target = Math.round(st.value);
+    const needsSend =
+      force ||
+      lastTrainerMode !== "resistance" ||
+      lastResistanceSent !== target ||
+      tNow - lastResistanceSendTs >= TRAINER_SEND_MIN_INTERVAL_SEC;
+
+    if (needsSend) {
+      logDebug(
+        `TrainerState: RESISTANCE, level=${target}, force=${force}, lastLevel=${lastResistanceSent}, lastMode=${lastTrainerMode}`
+      );
+      await sendResistanceLevelRaw(target);
+      lastTrainerMode = "resistance";
+      lastResistanceSent = target;
+      lastResistanceSendTs = tNow;
+    }
+  }
+}
+
+// --------------------------- Storage helper for BLE device IDs ---------------------------
+
+function loadSavedBleDeviceIds() {
+  return new Promise((resolve) => {
+    try {
+      if (!chrome || !chrome.storage || !chrome.storage.local) {
+        resolve({bikeId: null, hrId: null});
+        return;
+      }
+    } catch {
+      resolve({bikeId: null, hrId: null});
+      return;
+    }
+
+    chrome.storage.local.get(
+      {
+        [STORAGE_LAST_BIKE_DEVICE_ID]: null,
+        [STORAGE_LAST_HR_DEVICE_ID]: null,
+      },
+      (data) => {
+        resolve({
+          bikeId: data[STORAGE_LAST_BIKE_DEVICE_ID],
+          hrId: data[STORAGE_LAST_HR_DEVICE_ID],
+        });
+      }
+    );
+  });
+}
+
+// --------------------------- Unified connectToDevice (bike or HRM) ---------------------------
+// Retry a Bluetooth operation up to `retries` times with exponential backoff
+async function btRetry(fn, retries = 8, baseDelay = 1000) {
+  let lastErr;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const delay = baseDelay * Math.pow(1.2, attempt - 1);
+      logDebug(`btRetry: attempt ${attempt} failed: ${err}. Retrying in ${delay}ms`);
+      await new Promise((res) => setTimeout(res, delay));
+    }
+  }
+  throw lastErr;
+}
+
+// --------------------------- Unified connectToDevice (bike or HRM) ---------------------------
 
 async function connectToDevice(device, type) {
   if (!device) return;
-  bluetoothDevice = device;
-
-  bluetoothDevice.addEventListener("gattserverdisconnected", () => {
-    logDebug(`BLE disconnected (${type}).`);
-    if (type === "bike") {
-      isBikeConnected = false;
-      setBikeStatus("error");
-    } else {
-      isHrAvailable = false;
-      setHrStatus("error");
-    }
-  });
 
   if (type === "bike") {
+    // --- Bike connection ---
+    bikeState.device = device;
+
+    bikeState.device.addEventListener("gattserverdisconnected", () => {
+      logDebug("BLE disconnected (bike).");
+      isBikeConnected = false;
+      isBikeConnecting = false;
+      setBikeStatus("error");
+    });
+
     isBikeConnecting = true;
     setBikeStatus("connecting");
-  } else {
-    setHrStatus("connecting");
-  }
 
-  logDebug(`Connecting to GATT server for ${type}…`);
-  gattServer = await bluetoothDevice.gatt.connect();
-  logDebug("Connected to GATT server.");
+    logDebug("Connecting to GATT server for bike…");
+    // Retry connect – this is the most important flaky op
+    bikeState.server = await btRetry(
+      () => bikeState.device.gatt.connect()
+    );
+    logDebug("Connected to GATT server (bike).");
 
-  try {
-    if (chrome && chrome.storage && chrome.storage.local && type === "bike") {
-      chrome.storage.local.set({[STORAGE_LAST_DEVICE_ID]: bluetoothDevice.id});
-    }
-  } catch {}
+    // Persist bike device ID for future auto-reconnect
+    try {
+      if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({[STORAGE_LAST_BIKE_DEVICE_ID]: bikeState.device.id});
+      }
+    } catch {}
 
-  if (type === "bike") {
-    ftmsService = await gattServer
-      .getPrimaryService(FTMS_SERVICE_UUID)
-      .catch((err) => {
-        logDebug("Error getting FTMS service: " + err);
-        return null;
-      });
-    logDebug("FTMS service " + (ftmsService ? "found" : "not found"));
-  }
+    // FTMS service – critical for trainer, so if this fails after retries we let it throw
+    bikeState.ftmsService = await btRetry(
+      () => bikeState.server.getPrimaryService(FTMS_SERVICE_UUID)
+    ).catch((err) => {
+      logDebug("Error getting FTMS service: " + err);
+      return null;
+    });
 
-  heartRateService = await gattServer
-    .getPrimaryService(HEART_RATE_SERVICE_UUID)
-    .catch(() => null);
+    logDebug("FTMS service " + (bikeState.ftmsService ? "found" : "not found"));
 
-  batteryService = await gattServer
-    .getPrimaryService(BATTERY_SERVICE_UUID)
-    .catch(() => null);
-
-  if (type === "bike" && ftmsService) {
-    indoorBikeDataChar = await ftmsService
-      .getCharacteristic(INDOOR_BIKE_DATA_CHAR)
-      .catch((err) => {
+    if (bikeState.ftmsService) {
+      // Indoor Bike Data characteristic (notifications optional but useful)
+      bikeState.indoorBikeDataChar = await btRetry(
+        () => bikeState.ftmsService.getCharacteristic(INDOOR_BIKE_DATA_CHAR)
+      ).catch((err) => {
         logDebug("Error getting IndoorBikeData characteristic: " + err);
         return null;
       });
-    ftmsControlPointChar = await ftmsService
-      .getCharacteristic(FTMS_CONTROL_POINT_CHAR)
-      .catch((err) => {
+
+      // Control Point characteristic (needed for ERG/resistance)
+      bikeState.controlPointChar = await btRetry(
+        () => bikeState.ftmsService.getCharacteristic(FTMS_CONTROL_POINT_CHAR)
+      ).catch((err) => {
         logDebug("Error getting FTMS Control Point characteristic: " + err);
         return null;
       });
 
-    if (ftmsControlPointChar) {
-      ftmsControlPointChar.addEventListener(
-        "characteristicvaluechanged",
-        (ev) => {
-          const dv = ev.target.value;
-          if (!dv || dv.byteLength < 3) return;
-          const op = dv.getUint8(0);
-          const reqOp = dv.getUint8(1);
-          const resCode = dv.getUint8(2);
-          logDebug(
-            `FTMS CP <- Indication: op=0x${op
-              .toString(16)
-              .padStart(2, "0")}, req=0x${reqOp
+      // FTMS Control Point indications (optional)
+      if (bikeState.controlPointChar) {
+        bikeState.controlPointChar.addEventListener(
+          "characteristicvaluechanged",
+          (ev) => {
+            const dv = ev.target.value;
+            if (!dv || dv.byteLength < 3) return;
+            const op = dv.getUint8(0);
+            const reqOp = dv.getUint8(1);
+            const resCode = dv.getUint8(2);
+            logDebug(
+              `FTMS CP <- Indication: op=0x${op
                 .toString(16)
-                .padStart(2, "0")}, result=0x${resCode
+                .padStart(2, "0")}, req=0x${reqOp
                   .toString(16)
-                  .padStart(2, "0")}`
-          );
-        }
-      );
-      try {
-        await ftmsControlPointChar.startNotifications();
-        logDebug("Subscribed to FTMS Control Point indications.");
-      } catch (err) {
-        logDebug(
-          "Could not start FTMS Control Point indications (may still work): " +
-          err
+                  .padStart(2, "0")}, result=0x${resCode
+                    .toString(16)
+                    .padStart(2, "0")}`
+            );
+          }
         );
+        try {
+          await btRetry(() => bikeState.controlPointChar.startNotifications());
+          logDebug("Subscribed to FTMS Control Point indications.");
+        } catch (err) {
+          logDebug(
+            "Could not start FTMS Control Point indications (may still work): " +
+            err
+          );
+          // Non-fatal
+        }
+      }
+
+      // Indoor Bike Data notifications
+      if (bikeState.indoorBikeDataChar) {
+        bikeState.indoorBikeDataChar.addEventListener(
+          "characteristicvaluechanged",
+          (ev) => {
+            const dv = ev.target.value;
+            parseIndoorBikeData(dv);
+          }
+        );
+        try {
+          await btRetry(() => bikeState.indoorBikeDataChar.startNotifications());
+          logDebug("Subscribed to FTMS Indoor Bike Data (0x2AD2).");
+        } catch (err) {
+          logDebug(
+            "Could not start Indoor Bike Data notifications (may still work): " +
+            err
+          );
+          // Non-fatal
+        }
       }
     }
-  }
 
-  if (heartRateService) {
-    hrMeasurementChar = await heartRateService
-      .getCharacteristic(HR_MEASUREMENT_CHAR)
-      .catch((err) => {
-        logDebug("Error getting HR measurement characteristic: " + err);
-        return null;
-      });
-  }
-
-  if (type === "hr" && batteryService) {
-    try {
-      const batteryLevelChar = await batteryService.getCharacteristic(
-        BATTERY_LEVEL_CHAR
-      );
-      const val = await batteryLevelChar.readValue();
-      const pct = val.getUint8(0);
-      logDebug(`${type.toUpperCase()} battery: ${pct}%`);
-      hrBatteryPercent = pct;
-      updateHrBatteryLabel();
-    } catch (err) {
-      logDebug("Battery read failed: " + err);
-    }
-  }
-
-  if (type === "bike" && indoorBikeDataChar) {
-    indoorBikeDataChar.addEventListener(
-      "characteristicvaluechanged",
-      (ev) => {
-        const dv = ev.target.value;
-        parseIndoorBikeData(dv);
+    // Request control + start or resume if control point is present
+    if (bikeState.controlPointChar) {
+      try {
+        await sendFtmsControlPoint(FTMS_OPCODES.requestControl, null);
+        await sendFtmsControlPoint(FTMS_OPCODES.startOrResume, null);
+        logDebug("FTMS requestControl + startOrResume sent.");
+      } catch (err) {
+        logDebug("Failed to send FTMS requestControl/startOrResume: " + err);
+        // Non-fatal to the BLE connection itself
       }
-    );
-    await indoorBikeDataChar.startNotifications();
-    logDebug("Subscribed to FTMS Indoor Bike Data (0x2AD2).");
-  }
-
-  if (type === "bike" && ftmsControlPointChar) {
-    try {
-      await sendFtmsControlPoint(FTMS_OPCODES.requestControl, null);
-      await sendFtmsControlPoint(FTMS_OPCODES.startOrResume, null);
-      logDebug("FTMS requestControl + startOrResume sent.");
-    } catch (err) {
-      logDebug("Failed to send FTMS requestControl/startOrResume: " + err);
     }
-  }
 
-  if (hrMeasurementChar) {
-    await hrMeasurementChar.startNotifications();
-    hrMeasurementChar.addEventListener("characteristicvaluechanged", (ev) => {
-      parseHrMeasurement(ev.target.value);
-    });
-    isHrAvailable = true;
-    setHrStatus("connected");
-    logDebug("Subscribed to HRM Measurement (0x2A37).");
-  } else if (type === "hr") {
-    isHrAvailable = false;
-    setHrStatus("error");
-  }
-
-  if (type === "bike") {
     isBikeConnecting = false;
     isBikeConnected = true;
     setBikeStatus("connected");
     logDebug("Bike BLE ready, sending initial trainer state.");
     await sendTrainerState(true);
-  } else {
+    return;
+  }
+
+  if (type === "hr") {
+    // --- HRM connection ---
+    hrState.device = device;
+
+    hrState.device.addEventListener("gattserverdisconnected", () => {
+      logDebug("BLE disconnected (hr).");
+      isHrAvailable = false;
+      setHrStatus("error");
+    });
+
+    setHrStatus("connecting");
+    logDebug("Connecting to GATT server for hr…");
+    // Retry connect: critical to even talk to the HRM
+    hrState.server = await btRetry(
+      () => hrState.device.gatt.connect()
+    );
+    logDebug("Connected to GATT server (hr).");
+
+    // Persist HR device ID for future auto-reconnect
+    try {
+      if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({[STORAGE_LAST_HR_DEVICE_ID]: hrState.device.id});
+      }
+    } catch {}
+
+    // Heart Rate service (important but we treat failure as "no HR available")
+    hrState.hrService = await btRetry(
+      () => hrState.server.getPrimaryService(HEART_RATE_SERVICE_UUID)
+    ).catch((err) => {
+      logDebug("Error getting Heart Rate service: " + err);
+      return null;
+    });
+
+    // Battery service (optional)
+    hrState.batteryService = await hrState.server
+      .getPrimaryService(BATTERY_SERVICE_UUID)
+      .catch(() => null);
+
+    // HR Measurement characteristic
+    if (hrState.hrService) {
+      hrState.measurementChar = await btRetry(
+        () => hrState.hrService.getCharacteristic(HR_MEASUREMENT_CHAR)
+      ).catch((err) => {
+        logDebug("Error getting HR measurement characteristic: " + err);
+        return null;
+      });
+    }
+
+    if (hrState.measurementChar) {
+      try {
+        await btRetry(() => hrState.measurementChar.startNotifications());
+        hrState.measurementChar.addEventListener(
+          "characteristicvaluechanged",
+          (ev) => {
+            parseHrMeasurement(ev.target.value);
+          }
+        );
+        isHrAvailable = true;
+        setHrStatus("connected");
+        logDebug("Subscribed to HRM Measurement (0x2A37).");
+      } catch (err) {
+        logDebug("Could not start HRM notifications (may still work): " + err);
+        isHrAvailable = false;
+        setHrStatus("error");
+      }
+    } else {
+      isHrAvailable = false;
+      setHrStatus("error");
+    }
+
+    // Battery read (if available) – nice-to-have, with retry
+    if (hrState.batteryService) {
+      try {
+        const batteryLevelChar = await btRetry(
+          () => hrState.batteryService.getCharacteristic(BATTERY_LEVEL_CHAR)
+        );
+        const val = await btRetry(
+          () => batteryLevelChar.readValue()
+        );
+        const pct = val.getUint8(0);
+        logDebug(`HR battery: ${pct}%`);
+        hrBatteryPercent = pct;
+        updateHrBatteryLabel();
+      } catch (err) {
+        logDebug("Battery read failed: " + err);
+      }
+    }
+
     logDebug("HR BLE ready.");
+    return;
+  }
+
+  logDebug(`connectToDevice called with unknown type: ${type}`);
+}
+
+// --------------------------- Auto-reconnect helper (using getDevices) ---------------------------
+
+async function maybeReconnectSavedDevicesOnLoad() {
+  if (!navigator.bluetooth || !navigator.bluetooth.getDevices) {
+    logDebug("Web Bluetooth getDevices() not supported, skipping auto-reconnect.");
+    return;
+  }
+
+  const {bikeId, hrId} = await loadSavedBleDeviceIds();
+  if (!bikeId && !hrId) {
+    logDebug("No saved BLE device IDs, skipping auto-reconnect.");
+    return;
+  }
+
+  let devices;
+  try {
+    // Single attempt is usually fine here; this isn't super flaky in practice
+    devices = await navigator.bluetooth.getDevices();
+  } catch (err) {
+    logDebug("getDevices() failed: " + err);
+    return;
+  }
+
+  logDebug(`getDevices() returned ${devices.length} devices.`);
+
+  const bikeDevice = bikeId ? devices.find((d) => d.id === bikeId) : null;
+  const hrDevice = hrId ? devices.find((d) => d.id === hrId) : null;
+
+  // 1) Reconnect bike first
+  if (bikeDevice) {
+    logDebug("Found previously paired bike, attempting reconnect…");
+    setBikeStatus("connecting");
+    try {
+      await connectToDevice(bikeDevice, "bike");
+      await sendTrainerState(true);
+    } catch (err) {
+      logDebug("Auto-reconnect failed for bike: " + err);
+      setBikeStatus("error");
+    }
+  } else if (bikeId) {
+    logDebug("Saved bike ID not available in getDevices() (permission revoked?).");
+  }
+
+  // 2) Then HRM
+  if (hrDevice) {
+    logDebug("Found previously paired HRM, attempting reconnect…");
+    setHrStatus("connecting");
+    try {
+      await connectToDevice(hrDevice, "hr");
+    } catch (err) {
+      logDebug("Auto-reconnect failed for HRM: " + err);
+      setHrStatus("error");
+    }
+  } else if (hrId) {
+    logDebug("Saved HRM ID not available in getDevices() (permission revoked?).");
   }
 }
+
 
 // --------------------------- Interval beeps ---------------------------
 
@@ -3021,6 +3278,7 @@ async function initPage() {
       alert("Bluetooth not available in this browser.");
       return;
     }
+
     try {
       const device = await requestBikeDevice();
       await connectToDevice(device, "bike");
@@ -3036,6 +3294,7 @@ async function initPage() {
       alert("Bluetooth not available in this browser.");
       return;
     }
+
     try {
       const device = await requestHrDevice();
       await connectToDevice(device, "hr");
@@ -3128,6 +3387,10 @@ async function initPage() {
 
   adjustStatFontSizes();
   drawChart();
+
+  maybeReconnectSavedDevicesOnLoad().catch((err) =>
+    logDebug("Auto-reconnect error: " + err)
+  );
 
   logDebug("Workout page ready.");
 }
