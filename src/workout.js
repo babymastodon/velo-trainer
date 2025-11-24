@@ -188,9 +188,6 @@ let lastResistanceSent = null;
 let lastErgSendTs = 0;
 let lastResistanceSendTs = 0;
 
-// dark-mode cache
-let darkModeCached = null;
-
 // --------------------------- Helpers ---------------------------
 
 function logDebug(msg) {
@@ -248,13 +245,6 @@ function detectDarkMode() {
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: dark)").matches
   );
-}
-
-function isDarkMode() {
-  if (darkModeCached === null) {
-    darkModeCached = detectDarkMode();
-  }
-  return darkModeCached;
 }
 
 function parseHexColor(hex) {
@@ -645,6 +635,7 @@ function drawChart() {
   if (!chartSvg) return;
   updateChartDimensions();
   clearSvg(chartSvg);
+  const darkMode = detectDarkMode();
 
   const w = chartWidth;
   const h = chartHeight;
@@ -781,7 +772,7 @@ function drawChart() {
 
     const powerPath = pathForKey("power");
     if (powerPath) {
-      const powerColor = isDarkMode() ? "#ffb300" : "#f57c00";
+      const powerColor = darkMode ? "#ffb300" : "#f57c00";
       const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
       p.setAttribute("d", powerPath);
       p.setAttribute("fill", "none");
@@ -804,7 +795,7 @@ function drawChart() {
 
     const cadPath = pathForKey("cadence");
     if (cadPath) {
-      const cadColor = isDarkMode() ? "#26a69a" : "#00897b";
+      const cadColor = darkMode ? "#26a69a" : "#00897b";
       const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
       p.setAttribute("d", cadPath);
       p.setAttribute("fill", "none");
@@ -957,7 +948,7 @@ function updateStatsDisplay() {
   statIntervalTimeEl.textContent = formatTimeMMSS(intervalElapsedSec);
 
   let color = getCurrentZoneColor();
-  if (!isDarkMode()) {
+  if (!detectDarkMode()) {
     color = mixColors(color, "#000000", 0.5);
   }
 
@@ -1073,18 +1064,18 @@ function playBeep(durationMs = 150, freq = 880, gain = 0.5) {
   logDebug(`Audio beep: freq=${freq}Hz, duration=${durationMs}ms, gain=${gain}`);
 }
 
-function overlayTextColor() {
-  return isDarkMode() ? "#999999" : "#444444";
+function overlayTextColor(darkMode) {
+  return darkMode ? "#999999" : "#444444";
 }
 
-function overlayBackground() {
-  return isDarkMode()
+function overlayBackground(darkMode) {
+  return darkMode
     ? "rgba(34,34,34,.6)"
     : "rgba(244,244,244,.7)";
 }
 
-function overlayTextShadow() {
-  return isDarkMode()
+function overlayTextShadow(darkMode) {
+  return darkMode
     ? "0 0 20px rgba(34,34,34,1)"
     : "0 0 20px rgba(244,244,244,1)";
 }
@@ -1093,11 +1084,12 @@ function showStatusMessage(text, heightRatio = 0.2, durationMs = 800) {
   if (!statusOverlay || !statusText) return;
   const totalHeight = window.innerHeight || 800;
   const fontSize = Math.floor(totalHeight * heightRatio);
+  const darkMode = detectDarkMode();
   statusText.textContent = text;
   statusText.style.fontSize = `${fontSize}px`;
-  statusText.style.color = overlayTextColor();
-  statusText.style.textShadow = overlayTextShadow();
-  statusOverlay.style.background = overlayBackground();
+  statusText.style.color = overlayTextColor(darkMode);
+  statusText.style.textShadow = overlayTextShadow(darkMode);
+  statusOverlay.style.background = overlayBackground(darkMode);
   statusOverlay.style.display = "flex";
   void statusOverlay.offsetWidth;
   statusOverlay.style.opacity = "1";
@@ -3146,11 +3138,9 @@ function rerenderThemeSensitive() {
 async function initPage() {
   logDebug("Workout page init…");
 
-  darkModeCached = detectDarkMode();
   if (window.matchMedia) {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e) => {
-      darkModeCached = e.matches;
       rerenderThemeSensitive();
       if (isPickerOpen) {
         renderWorkoutPickerTable();
