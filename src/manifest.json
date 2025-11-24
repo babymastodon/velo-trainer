@@ -45,7 +45,7 @@
     }
   ],
 
-  "options_page": "options.html",
+  "options_page": "workout.html",
 
   "web_accessible_resources": [
     {
