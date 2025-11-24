@@ -51,9 +51,7 @@
     {
       "resources": [
         "workout.html",
-        "workout.js",
-        "kickr-test.html",
-        "kickr-test.js"
+        "workout.js"
       ],
       "matches": ["chrome-extension://*/*"]
     }
