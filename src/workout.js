@@ -840,7 +840,11 @@ function attachSegmentHover(svg, tooltipEl, containerEl) {
     const p1 = segment.dataset.p1;
     const durMin = segment.dataset.durMin;
 
-    tooltipEl.textContent = `${zone}: ${p0}%–${p1}% FTP, ${durMin} min`;
+    if (p0 === p1) {
+      tooltipEl.textContent = `${zone}: ${p0}% FTP, ${durMin} min`;
+    } else {
+      tooltipEl.textContent = `${zone}: ${p0}%–${p1}% FTP, ${durMin} min`;
+    }
     tooltipEl.style.display = "block";
 
     const panelRect = containerEl.getBoundingClientRect();
@@ -1070,13 +1074,19 @@ function playBeep(durationMs = 150, freq = 880, gain = 0.5) {
 }
 
 function overlayTextColor() {
-  return isDarkMode() ? "#999999" : "#555555";
+  return isDarkMode() ? "#999999" : "#444444";
+}
+
+function overlayBackground() {
+  return isDarkMode()
+    ? "rgba(34,34,34,.6)"
+    : "rgba(244,244,244,.7)";
 }
 
 function overlayTextShadow() {
   return isDarkMode()
-    ? "0 2px 4px rgba(0,0,0,0.9)"
-    : "0 2px 4px rgba(255,255,255,0.9)";
+    ? "0 0 20px rgba(34,34,34,1)"
+    : "0 0 20px rgba(244,244,244,1)";
 }
 
 function showStatusMessage(text, heightRatio = 0.2, durationMs = 800) {
@@ -1087,6 +1097,7 @@ function showStatusMessage(text, heightRatio = 0.2, durationMs = 800) {
   statusText.style.fontSize = `${fontSize}px`;
   statusText.style.color = overlayTextColor();
   statusText.style.textShadow = overlayTextShadow();
+  statusOverlay.style.background = overlayBackground();
   statusOverlay.style.display = "flex";
   void statusOverlay.offsetWidth;
   statusOverlay.style.opacity = "1";
@@ -1113,7 +1124,7 @@ function runStartCountdown(onDone) {
   const totalHeight = window.innerHeight || 800;
   const baseColor = overlayTextColor();
   const fontSize = Math.floor(totalHeight * 0.25);
-  const shadow = overlayTextShadow();
+  const shadow = overlayBackground();
 
   const step = () => {
     if (idx >= seq.length) {
@@ -1154,11 +1165,11 @@ function runStartCountdown(onDone) {
 }
 
 function showPausedOverlay() {
-  showStatusMessage("Workout Paused", 0.2, 800);
+  showStatusMessage("Workout Paused", 0.2, 1500);
 }
 
 function showResumedOverlay() {
-  showStatusMessage("Workout Resumed", 0.2, 800);
+  showStatusMessage("Workout Resumed", 0.2, 1500);
 }
 
 // --------------------------- BLE parsing (FTMS + HR) ---------------------------
