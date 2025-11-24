@@ -290,8 +290,10 @@ function adjustStatFontSizes() {
 // --------------------------- Chart dimension helpers ---------------------------
 
 function updateChartDimensions() {
-  const w = window.innerWidth || 1200;
-  const h = Math.floor((window.innerHeight || 800) / 2);
+  if (!chartPanel) return;
+  const rect = chartPanel.getBoundingClientRect();
+  const w = rect.width || window.innerWidth || 1200;
+  const h = rect.height || Math.floor((window.innerHeight || 800) / 2);
   chartWidth = Math.max(200, Math.floor(w));
   chartHeight = Math.max(200, Math.floor(h));
 }
