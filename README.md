@@ -22,8 +22,8 @@ No backend. No accounts. No dependencies. Just your browser, your trainer, and y
 ### Install
 
 1. Clone the repo:
-   ```sh
-   git clone https://github.com/yourname/zwo-downloader-trainer.git
+```sh
+git clone https://github.com/yourname/zwo-downloader-trainer.git
 ````
 
 2. Open Chrome → `chrome://extensions`
