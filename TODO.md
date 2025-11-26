@@ -22,3 +22,4 @@
 - when workout ends, stop the timer, and continue showing target power, and also stop/save the workout
 - investigate stability of the timer (uses system clock instead of settimeout)
 - workout selector should remember filters and also have hotkeys for workout types.
+- fix parsing of 1min 50sec @ 85rpm, 136W at https://whatsonzwift.com/workouts/threshold/atoverunder
