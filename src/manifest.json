@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "VeloDrive",
   "version": "0.3.0",
-  "description": "Download structured Zwift .zwo workouts from TrainerRoad, TrainerDay, and WhatsOnZwift. Contains an internal BLE test page for Wahoo KICKR.",
+  "description": "VeloDrive imports ZWO workouts from sites like WhatsOnZwift or TrainerDay and runs them in the browser with smart-trainer ERG/FTMS support.",
   
   "icons": {
     "16": "icons/icon16.png",
