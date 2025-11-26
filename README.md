@@ -1,10 +1,10 @@
-![Workout interface](docs/hero.png)
-
-# VeloDrive
+# <img src="logo.svg" alt="VeloDrive logo" height="40"> VeloDrive
 
 VeloDrive is a lightweight Chrome extension / PWA that helps you build your own library of structured cycling workouts and ride them indoors on a smart trainer — entirely in the browser. You can grab workouts from [WhatsOnZwift](https://whatsonzwift.com/workouts), [TrainerDay](https://app.trainerday.com/workouts), and [TrainerRoad](https://www.trainerroad.com/app/cycling/workouts) (members only) save them into a local folder, and run them using a clean workout interface with ERG control, Bluetooth FTMS support, and automatic workout recording.
 
 No backend. No accounts. No dependencies. Just your browser, your trainer, and your workouts.
+
+![Workout interface](docs/hero.png)
 
 ## Features
 
