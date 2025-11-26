@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo_inline.svg" alt="VeloDrive logo" height="128">
+  <img src="logo.svg" alt="VeloDrive logo" height="128">
 </p>
 
 # VeloDrive
