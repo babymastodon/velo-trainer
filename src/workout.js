@@ -40,6 +40,7 @@ const STORAGE_ACTIVE_STATE = "activeWorkoutState";
 const STORAGE_SOUND_ENABLED = "soundEnabled";
 const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
 const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
+const STORAGE_PICKER_STATE = "pickerState";
 
 // Auto-pause after 1 second of 0 power
 const AUTO_PAUSE_POWER_ZERO_SEC = 1;
@@ -2505,6 +2506,45 @@ let pickerSortKey = "kjAdj"; // "if", "tss", "kjAdj", "duration", "name"
 let pickerSortDir = "asc";   // "asc" | "desc"
 let isPickerOpen = false;
 
+function loadPickerState() {
+  return new Promise((resolve) => {
+    try {
+      if (!chrome || !chrome.storage || !chrome.storage.local) {
+        resolve(null);
+        return;
+      }
+    } catch {
+      resolve(null);
+      return;
+    }
+
+    chrome.storage.local.get(
+      {[STORAGE_PICKER_STATE]: null},
+      (data) => {
+        resolve(data[STORAGE_PICKER_STATE]);
+      }
+    );
+  });
+}
+
+function persistPickerState() {
+  try {
+    if (!chrome || !chrome.storage || !chrome.storage.local) return;
+  } catch {
+    return;
+  }
+
+  const state = {
+    searchTerm: pickerSearchInput ? pickerSearchInput.value : "",
+    category: pickerCategoryFilter ? pickerCategoryFilter.value : "",
+    duration: pickerDurationFilter ? pickerDurationFilter.value : "",
+    sortKey: pickerSortKey,
+    sortDir: pickerSortDir,
+  };
+
+  chrome.storage.local.set({[STORAGE_PICKER_STATE]: state});
+}
+
 // metrics / parsing (copied from options.js, adapted)
 
 function computeMetricsFromSegments(segments, ftp) {
@@ -3160,6 +3200,7 @@ function setupPickerSorting() {
         pickerSortDir = key === "kjAdj" ? "asc" : "desc";
       }
       renderWorkoutPickerTable();
+      persistPickerState();
     });
   });
   updatePickerSortHeaderIndicator();
@@ -3253,6 +3294,27 @@ async function rescanPickerWorkouts() {
   pickerExpandedKey = null;
   pickerWorkouts = await scanWorkoutsFromDirectory(zwoDirHandle);
   refreshPickerCategoryFilter();
+
+  const saved = await loadPickerState();
+  if (saved) {
+    if (pickerSearchInput) {
+      pickerSearchInput.value = saved.searchTerm || "";
+    }
+    if (pickerCategoryFilter) {
+      pickerCategoryFilter.value = saved.category || "";
+    }
+    if (pickerDurationFilter) {
+      pickerDurationFilter.value = saved.duration || "";
+    }
+
+    if (saved.sortKey) {
+      pickerSortKey = saved.sortKey;
+    }
+    if (saved.sortDir === "asc" || saved.sortDir === "desc") {
+      pickerSortDir = saved.sortDir;
+    }
+  }
+
   renderWorkoutPickerTable();
 }
 
@@ -3692,18 +3754,21 @@ async function initPage() {
   if (pickerSearchInput) {
     pickerSearchInput.addEventListener("input", () => {
       renderWorkoutPickerTable();
+      persistPickerState();
     });
   }
 
   if (pickerCategoryFilter) {
     pickerCategoryFilter.addEventListener("change", () => {
       renderWorkoutPickerTable();
+      persistPickerState();
     });
   }
 
   if (pickerDurationFilter) {
     pickerDurationFilter.addEventListener("change", () => {
       renderWorkoutPickerTable();
+      persistPickerState();
     });
   }
 

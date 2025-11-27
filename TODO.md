@@ -2,15 +2,9 @@
 - pause workout when bike disconnected, and maybe don't start workout if bike disconnected
 
 ## 🖥️ UI / UX Issues & Improvements
-- maybe add a bit more padding at the top of big number titles
 - in product modals, or ideally local popup above FTP when selecting
 - there are white lines between the segments in the workout chart
 - there should be time tick marks on the x axis
-- button focus should not have blue border
-- workout selector should remember filters and also have hotkeys for workout types.
-
-## 🔊 Notifications & Audio Feedback
-- do siren 10s before big spike, and different soudns for start vs end interval
 
 ## ⚙️ Workout Execution & Behavior
 - erg and resistance flows are not implemented
