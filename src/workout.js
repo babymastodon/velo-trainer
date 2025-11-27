@@ -2219,14 +2219,14 @@ function handleIntervalBeep(currentT) {
   const secsToEnd = segment.endTimeSec - currentT;
   const secsToEndInt = Math.round(secsToEnd);
 
-  // Next segment target as a % of FTP (1.5 = 150%)
+  // Next segment target as a % of FTP (1.2 = 120%)
   const nextTargetPct =
     next.targetWattsStart != null
       ? next.targetWattsStart / ftp
       : next.pStartRel;
 
-  // 1) 9 seconds before a segment change of >= 30% AND next >= 150% FTP → air raid siren
-  if (diffFrac >= 0.30 && nextTargetPct >= 1.5 && secsToEndInt === 9) {
+  // 1) 9 seconds before a segment change of >= 30% AND next >= 120% FTP → air raid siren
+  if (diffFrac >= 0.30 && nextTargetPct >= 1.2 && secsToEndInt === 9) {
     Beeper.playDangerDanger();
   }
 
