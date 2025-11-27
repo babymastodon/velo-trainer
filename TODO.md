@@ -10,7 +10,6 @@
 - workout selector should remember filters and also have hotkeys for workout types.
 
 ## 🔊 Notifications & Audio Feedback
-- beep if the power change is greater than 5% to next interval, and the low beep is not audible
 - do siren 10s before big spike, and different soudns for start vs end interval
 
 ## ⚙️ Workout Execution & Behavior
