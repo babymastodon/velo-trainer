@@ -3,7 +3,6 @@
 - beep if the power change is greater than 5% to next interval, and the low beep is not audible
 - maybe add a bit more padding at the top of big number titles
 - in product modals, or ideally local popup above FTP when selecting
-- need use monospace font for numbers, or somehow prevent them from shifting around
 - there are white lines between the segments in the workout chart
 - there should be time tick marks on the x axis
 - pause message 0.5 second longer

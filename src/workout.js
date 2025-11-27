@@ -289,9 +289,11 @@ function adjustStatFontSizes() {
     const availableHeight = cardRect.height - labelRect.height - 6;
     const availableWidth = cardRect.width;
 
+    const isDouble = valueEl.classList.contains('stat-lg');
+
     const fs = Math.max(
       18,
-      Math.min(availableHeight * 0.7, availableWidth / 3.5) * 0.9 // 90%
+      Math.min(availableHeight * 0.7, availableWidth / (isDouble ? 6 : 3)) * 0.9 // 90%
     );
     valueEl.style.fontSize = `${fs}px`;
   });
