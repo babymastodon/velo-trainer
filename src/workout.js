@@ -209,12 +209,12 @@ function initBleIntegration() {
 
   // Update live samples used by HUD / auto-start
   BleManager.on("bikeSample", (sample) => {
-    if (sample.power != null) lastSamplePower = sample.power;
-    if (sample.cadence != null) lastSampleCadence = sample.cadence;
-    if (sample.speedKph != null) lastSampleSpeed = sample.speedKph;
+    lastSamplePower = sample.power;
+    lastSampleCadence = sample.cadence;
+    lastSampleSpeed = sample.speedKph;
 
     // Only use HR from bike if no dedicated HRM is connected
-    if (!isHrAvailable && sample.hrFromBike != null) {
+    if (!isHrAvailable) {
       lastSampleHr = sample.hrFromBike;
     }
 
@@ -226,10 +226,8 @@ function initBleIntegration() {
   });
 
   BleManager.on("hrSample", (bpm) => {
-    if (bpm != null) {
-      lastSampleHr = bpm;
-      updateStatsDisplay();
-    }
+    lastSampleHr = bpm;
+    updateStatsDisplay();
   });
 
   BleManager.on("hrBattery", (pct) => {
@@ -1565,6 +1563,10 @@ const BleManager = (() => {
   let bikeConnected = false;
   let hrConnected = false;
 
+  // Suppress auto-reconnect once (for manual disconnects)
+  let bikeSuppressAutoReconnectOnce = false;
+  let hrSuppressAutoReconnectOnce = false;
+
   // Global auto-reconnect enable flag
   let autoReconnectEnabled = true;
 
@@ -2127,7 +2129,13 @@ const BleManager = (() => {
 
         // Upon disconnect, resume regular auto-reconnect with reset backoff
         bikeAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
-        scheduleBikeAutoReconnect(true);
+
+        if (!bikeSuppressAutoReconnectOnce) {
+          scheduleBikeAutoReconnect(true);
+        } else {
+          bikeSuppressAutoReconnectOnce = false;
+          log("Bike auto-reconnect suppressed once after manual disconnect.");
+        }
       };
 
       device.addEventListener("gattserverdisconnected", disconnectHandler);
@@ -2257,7 +2265,13 @@ const BleManager = (() => {
 
         // Upon disconnect, resume regular auto-reconnect with reset backoff
         hrAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
-        scheduleHrAutoReconnect(true);
+
+        if (!hrSuppressAutoReconnectOnce) {
+          scheduleHrAutoReconnect(true);
+        } else {
+          hrSuppressAutoReconnectOnce = false;
+          log("HR auto-reconnect suppressed once after manual disconnect.");
+        }
       };
 
       device.addEventListener("gattserverdisconnected", disconnectHandler);
@@ -2364,7 +2378,22 @@ const BleManager = (() => {
       // If user manually triggers connect, cancel any pending auto-connects
       cancelBikeAutoReconnect();
 
-      const device = await requestBikeDevice();
+      const wasConnected = bikeConnected;
+      let device;
+
+      try {
+        device = await requestBikeDevice();
+      } catch (err) {
+        log("Bike picker cancelled or failed: " + err);
+        if (wasConnected && bikeState.server && bikeState.server.connected) {
+          bikeSuppressAutoReconnectOnce = true;
+          try {
+            bikeState.server.disconnect();
+          } catch {}
+        }
+        throw err;
+      }
+
       const deviceId = device.id;
 
       // The user's selection becomes the new desired bike ID
@@ -2390,7 +2419,22 @@ const BleManager = (() => {
 
       cancelHrAutoReconnect();
 
-      const device = await requestHrDevice();
+      const wasConnected = hrConnected;
+      let device;
+
+      try {
+        device = await requestHrDevice();
+      } catch (err) {
+        log("HR picker cancelled or failed: " + err);
+        if (wasConnected && hrState.server && hrState.server.connected) {
+          hrSuppressAutoReconnectOnce = true;
+          try {
+            hrState.server.disconnect();
+          } catch {}
+        }
+        throw err;
+      }
+
       const deviceId = device.id;
 
       hrDesiredDeviceId = deviceId;
