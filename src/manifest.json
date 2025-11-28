@@ -51,7 +51,9 @@
     {
       "resources": [
         "workout.html",
-        "workout.js"
+        "workout.js",
+        "ble-manager.js",
+        "beeper.js"
       ],
       "matches": ["chrome-extension://*/*"]
     }
