@@ -11,12 +11,10 @@ import {getWorkoutEngine} from "./workout-engine.js";
 import {getWorkoutPicker} from "./workout-picker.js";
 
 import {
-  clearSvg,
-  renderWorkoutSegmentPolygon,
-  attachSegmentHover,
   getCssVar,
   mixColors,
   zoneInfoFromRel,
+  drawWorkoutChart,
 } from "./workout-chart.js";
 
 import {DEFAULT_FTP} from "./workout-metrics.js";
@@ -341,161 +339,19 @@ function updateStatsDisplay(vm) {
 function drawChart(vm) {
   if (!chartSvg || !chartPanel) return;
   updateChartDimensions();
-  clearSvg(chartSvg);
 
-  const w = chartWidth;
-  const h = chartHeight;
-  chartSvg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-  chartSvg.setAttribute("shape-rendering", "crispEdges");
-
-  const ftp = vm.currentFtp || DEFAULT_FTP;
-  const maxY = Math.max(200, ftp * 2);
-
-  // grid
-  const step = 100;
-  for (let yVal = 0; yVal <= maxY; yVal += step) {
-    const y = h - (yVal / maxY) * h;
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("x1", "0");
-    line.setAttribute("x2", String(w));
-    line.setAttribute("y1", String(y));
-    line.setAttribute("y2", String(y));
-    line.setAttribute("stroke", getCssVar("--grid-line-subtle"));
-    line.setAttribute("stroke-width", "0.5");
-    line.setAttribute("pointer-events", "none");
-    chartSvg.appendChild(line);
-
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("x", "4");
-    label.setAttribute("y", String(y - 6));
-    label.setAttribute("font-size", "14");
-    label.setAttribute("fill", getCssVar("--text-muted"));
-    label.setAttribute("pointer-events", "none");
-    label.textContent = String(yVal);
-    chartSvg.appendChild(label);
-  }
-
-  const totalSec = vm.workoutTotalSec || 1;
-
-  // segments
-  if (vm.scaledSegments && vm.scaledSegments.length) {
-    vm.scaledSegments.forEach((seg) => {
-      renderWorkoutSegmentPolygon({
-        svg: chartSvg,
-        seg,
-        totalSec,
-        width: w,
-        height: h,
-        ftp,
-        maxY,
-      });
-    });
-  }
-
-  // past shade
-  if (vm.elapsedSec > 0 && totalSec > 0) {
-    const xPast = Math.min(w, (vm.elapsedSec / totalSec) * w);
-    const shade = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    shade.setAttribute("x", "0");
-    shade.setAttribute("y", "0");
-    shade.setAttribute("width", String(xPast));
-    shade.setAttribute("height", String(h));
-    shade.setAttribute("fill", getCssVar("--shade-bg"));
-    shade.setAttribute("fill-opacity", "0.05");
-    shade.setAttribute("pointer-events", "none");
-    chartSvg.appendChild(shade);
-  }
-
-  // FTP line
-  const ftpY = h - (ftp / maxY) * h;
-  const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  ftpLine.setAttribute("x1", "0");
-  ftpLine.setAttribute("x2", String(w));
-  ftpLine.setAttribute("y1", String(ftpY));
-  ftpLine.setAttribute("y2", String(ftpY));
-  ftpLine.setAttribute("stroke", getCssVar("--ftp-line"));
-  ftpLine.setAttribute("stroke-width", "1.5");
-  ftpLine.setAttribute("pointer-events", "none");
-  chartSvg.appendChild(ftpLine);
-
-  const ftpLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  ftpLabel.setAttribute("x", String(w - 4));
-  ftpLabel.setAttribute("y", String(ftpY - 6));
-  ftpLabel.setAttribute("font-size", "14");
-  ftpLabel.setAttribute("fill", getCssVar("--ftp-line"));
-  ftpLabel.setAttribute("text-anchor", "end");
-  ftpLabel.setAttribute("pointer-events", "none");
-  ftpLabel.textContent = `FTP ${ftp}`;
-  chartSvg.appendChild(ftpLabel);
-
-  // position line
-  const xNow = Math.min(w, (vm.elapsedSec / totalSec) * w);
-  const posLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  posLine.setAttribute("x1", String(xNow));
-  posLine.setAttribute("x2", String(xNow));
-  posLine.setAttribute("y1", "0");
-  posLine.setAttribute("y2", String(h));
-  posLine.setAttribute("stroke", "#fdd835");
-  posLine.setAttribute("stroke-width", "1.5");
-  posLine.setAttribute("pointer-events", "none");
-  chartSvg.appendChild(posLine);
-
-  // live sample lines
-  const samples = vm.liveSamples || [];
-  const powerColor = getCssVar("--power-line");
-  const hrColor = getCssVar("--hr-line");
-  const cadColor = getCssVar("--cad-line");
-
-  if (samples.length) {
-    const pathForKey = (key) => {
-      let d = "";
-      samples.forEach((s) => {
-        const t = s.t;
-        const val = s[key];
-        if (val == null) return;
-        const x = Math.min(w, (t / totalSec) * w);
-        const yVal = Math.min(maxY, Math.max(0, val));
-        const y = h - (yVal / maxY) * h;
-        d += (d ? " L " : "M ") + x + " " + y;
-      });
-      return d;
-    };
-
-    const powerPath = pathForKey("power");
-    if (powerPath) {
-      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      p.setAttribute("d", powerPath);
-      p.setAttribute("fill", "none");
-      p.setAttribute("stroke", powerColor);
-      p.setAttribute("stroke-width", "2.5");
-      p.setAttribute("pointer-events", "none");
-      chartSvg.appendChild(p);
-    }
-
-    const hrPath = pathForKey("hr");
-    if (hrPath) {
-      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      p.setAttribute("d", hrPath);
-      p.setAttribute("fill", "none");
-      p.setAttribute("stroke", hrColor);
-      p.setAttribute("stroke-width", "1.5");
-      p.setAttribute("pointer-events", "none");
-      chartSvg.appendChild(p);
-    }
-
-    const cadPath = pathForKey("cadence");
-    if (cadPath) {
-      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      p.setAttribute("d", cadPath);
-      p.setAttribute("fill", "none");
-      p.setAttribute("stroke", cadColor);
-      p.setAttribute("stroke-width", "1.5");
-      p.setAttribute("pointer-events", "none");
-      chartSvg.appendChild(p);
-    }
-  }
-
-  attachSegmentHover(chartSvg, chartTooltip, chartPanel);
+  drawWorkoutChart({
+    svg: chartSvg,
+    panel: chartPanel,
+    tooltipEl: chartTooltip,
+    width: chartWidth,
+    height: chartHeight,
+    ftp: vm.currentFtp || DEFAULT_FTP,
+    scaledSegments: vm.scaledSegments,
+    totalSec: vm.workoutTotalSec,
+    elapsedSec: vm.elapsedSec,
+    liveSamples: vm.liveSamples,
+  });
 }
 
 // --------------------------- Playback buttons ---------------------------

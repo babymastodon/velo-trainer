@@ -110,7 +110,7 @@ export function computeScaledSegments(segments, ftp) {
 
 // --------------------------- SVG helpers ---------------------------
 
-export function clearSvg(svg) {
+function clearSvg(svg) {
   if (!svg) return;
   while (svg.firstChild) svg.removeChild(svg.firstChild);
 }
@@ -119,7 +119,7 @@ export function clearSvg(svg) {
  * Renders a single workout segment polygon into an SVG, with data attributes
  * for hover tooltips. Used by both the main workout chart and the mini graphs.
  */
-export function renderWorkoutSegmentPolygon({
+function renderWorkoutSegmentPolygon({
   svg,
   seg,
   totalSec,
@@ -178,7 +178,7 @@ let lastHoveredSegment = null;
 /**
  * Attaches hover behavior for segments: shows tooltip and highlights polygon.
  */
-export function attachSegmentHover(svg, tooltipEl, containerEl) {
+function attachSegmentHover(svg, tooltipEl, containerEl) {
   if (!svg || !tooltipEl || !containerEl) return;
 
   svg.addEventListener("mousemove", (e) => {
@@ -334,5 +334,158 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
   container.appendChild(tooltip);
 
   attachSegmentHover(svg, tooltip, container);
+}
+
+// Draw the main workout chart
+
+export function drawWorkoutChart({
+  svg,
+  panel,
+  tooltipEl,
+  width,
+  height,
+  ftp,
+  scaledSegments,
+  totalSec,
+  elapsedSec,
+  liveSamples,
+}) {
+  if (!svg || !panel) return;
+  clearSvg(svg);
+
+  const w = width;
+  const h = height;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.setAttribute("shape-rendering", "crispEdges");
+
+  const maxY = Math.max(200, ftp * 2);
+
+  // grid
+  const step = 100;
+  for (let yVal = 0; yVal <= maxY; yVal += step) {
+    const y = h - (yVal / maxY) * h;
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", "0");
+    line.setAttribute("x2", String(w));
+    line.setAttribute("y1", String(y));
+    line.setAttribute("y2", String(y));
+    line.setAttribute("stroke", getCssVar("--grid-line-subtle"));
+    line.setAttribute("stroke-width", "0.5");
+    line.setAttribute("pointer-events", "none");
+    svg.appendChild(line);
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", "4");
+    label.setAttribute("y", String(y - 6));
+    label.setAttribute("font-size", "14");
+    label.setAttribute("fill", getCssVar("--text-muted"));
+    label.setAttribute("pointer-events", "none");
+    label.textContent = String(yVal);
+    svg.appendChild(label);
+  }
+
+  const safeTotalSec = totalSec || 1;
+
+  // workout segments
+  if (scaledSegments && scaledSegments.length) {
+    scaledSegments.forEach((seg) => {
+      renderWorkoutSegmentPolygon({
+        svg,
+        seg,
+        totalSec: safeTotalSec,
+        width: w,
+        height: h,
+        ftp,
+        maxY,
+      });
+    });
+  }
+
+  // past shade
+  if (elapsedSec > 0 && safeTotalSec > 0) {
+    const xPast = Math.min(w, (elapsedSec / safeTotalSec) * w);
+    const shade = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    shade.setAttribute("x", "0");
+    shade.setAttribute("y", "0");
+    shade.setAttribute("width", String(xPast));
+    shade.setAttribute("height", String(h));
+    shade.setAttribute("fill", getCssVar("--shade-bg"));
+    shade.setAttribute("fill-opacity", "0.05");
+    shade.setAttribute("pointer-events", "none");
+    svg.appendChild(shade);
+  }
+
+  // FTP line
+  const ftpY = h - (ftp / maxY) * h;
+  const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  ftpLine.setAttribute("x1", "0");
+  ftpLine.setAttribute("x2", String(w));
+  ftpLine.setAttribute("y1", String(ftpY));
+  ftpLine.setAttribute("y2", String(ftpY));
+  ftpLine.setAttribute("stroke", getCssVar("--ftp-line"));
+  ftpLine.setAttribute("stroke-width", "1.5");
+  ftpLine.setAttribute("pointer-events", "none");
+  svg.appendChild(ftpLine);
+
+  const ftpLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  ftpLabel.setAttribute("x", String(w - 4));
+  ftpLabel.setAttribute("y", String(ftpY - 6));
+  ftpLabel.setAttribute("font-size", "14");
+  ftpLabel.setAttribute("fill", getCssVar("--ftp-line"));
+  ftpLabel.setAttribute("text-anchor", "end");
+  ftpLabel.setAttribute("pointer-events", "none");
+  ftpLabel.textContent = `FTP ${ftp}`;
+  svg.appendChild(ftpLabel);
+
+  // position line
+  const xNow = Math.min(w, (elapsedSec / safeTotalSec) * w);
+  const posLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  posLine.setAttribute("x1", String(xNow));
+  posLine.setAttribute("x2", String(xNow));
+  posLine.setAttribute("y1", "0");
+  posLine.setAttribute("y2", String(h));
+  posLine.setAttribute("stroke", "#fdd835");
+  posLine.setAttribute("stroke-width", "1.5");
+  posLine.setAttribute("pointer-events", "none");
+  svg.appendChild(posLine);
+
+  // live sample lines
+  const samples = liveSamples || [];
+  const powerColor = getCssVar("--power-line");
+  const hrColor = getCssVar("--hr-line");
+  const cadColor = getCssVar("--cad-line");
+
+  if (samples.length) {
+    const pathForKey = (key) => {
+      let d = "";
+      samples.forEach((s) => {
+        const t = s.t;
+        const val = s[key];
+        if (val == null) return;
+        const x = Math.min(w, (t / safeTotalSec) * w);
+        const yVal = Math.min(maxY, Math.max(0, val));
+        const y = h - (yVal / maxY) * h;
+        d += (d ? " L " : "M ") + x + " " + y;
+      });
+      return d;
+    };
+
+    const addPath = (d, color, strokeWidth) => {
+      if (!d) return;
+      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      p.setAttribute("d", d);
+      p.setAttribute("fill", "none");
+      p.setAttribute("stroke", color);
+      p.setAttribute("stroke-width", String(strokeWidth));
+      p.setAttribute("pointer-events", "none");
+      svg.appendChild(p);
+    };
+
+    addPath(pathForKey("power"), powerColor, 2.5);
+    addPath(pathForKey("hr"), hrColor, 1.5);
+    addPath(pathForKey("cadence"), cadColor, 1.5);
+  }
+
+  attachSegmentHover(svg, tooltipEl, panel);
 }
 
