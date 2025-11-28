@@ -8,7 +8,11 @@ VeloDrive is a lightweight Chrome extension / PWA that helps you build your own 
 
 No backend. No accounts. No dependencies. Just your browser, your trainer, and your workouts.
 
-![Workout interface](docs/hero.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.png">
+  <img alt="Workout Interface" src="docs/hero.png">
+</picture>
+
 
 ## Features
 
@@ -52,7 +56,10 @@ Choose a `.zwo` from your library, connect your trainer and HR strap, set your F
 A countdown begins, ERG targets are applied, and the chart + metrics update in real time.
 When finished, a JSON file with your entire ride is written to your history folder.
 
-![Workout selector interface](docs/selector.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/selector-dark.png">
+  <img alt="Workout Selector Interface" src="docs/selector.png">
+</picture>
 
 ## Supported Platforms
 
