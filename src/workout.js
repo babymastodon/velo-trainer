@@ -5,28 +5,6 @@
 
 // --------------------------- Constants / BLE UUIDs ---------------------------
 
-const FTMS_SERVICE_UUID = 0x1826;
-const HEART_RATE_SERVICE_UUID = 0x180d;
-const BATTERY_SERVICE_UUID = 0x180f;
-
-const INDOOR_BIKE_DATA_CHAR = 0x2ad2;
-const FTMS_CONTROL_POINT_CHAR = 0x2ad9;
-const HR_MEASUREMENT_CHAR = 0x2a37;
-const BATTERY_LEVEL_CHAR = 0x2a19;
-
-// FTMS opcodes (subset)
-const FTMS_OPCODES = {
-  requestControl: 0x00,
-  reset: 0x01,
-  setTargetSpeed: 0x02,
-  setTargetInclination: 0x03,
-  setTargetResistanceLevel: 0x04,
-  setTargetPower: 0x05,
-  setTargetHeartRate: 0x06,
-  startOrResume: 0x07,
-  stopOrPause: 0x08,
-};
-
 const DEFAULT_FTP = 250;
 
 const DB_NAME = "velo-drive";
