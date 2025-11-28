@@ -1624,6 +1624,38 @@ const BleManager = (() => {
   // Retry helper
   // ---------------------------------------------------------------------------
 
+  // Helper: detect when the error is really "GATT is gone, stop retrying"
+  function isGattDisconnectedError(err) {
+    if (!err) return false;
+
+    const name = err.name || "";
+    const msg = String(err.message || err).toLowerCase();
+
+    // Web Bluetooth tends to use NetworkError with this message
+    if (msg.includes("gatt server is disconnected")) {
+      return true;
+    }
+
+    // Be conservative: some stacks use these names for "not connected"
+    if (
+      name === "NetworkError" ||
+      name === "NotConnectedError" ||
+      name === "InvalidStateError"
+    ) {
+      // Only treat as fatal if message suggests disconnection
+      if (
+        msg.includes("gatt") &&
+        (msg.includes("disconnect") || msg.includes("not connected"))
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Retry a Bluetooth operation up to `retries` times with exponential backoff,
+  // but abort immediately once we know the GATT server is disconnected.
   async function btRetry(fn, retries = 8, baseDelay = 1000) {
     let lastErr;
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -1631,13 +1663,27 @@ const BleManager = (() => {
         return await fn();
       } catch (err) {
         lastErr = err;
+
+        // If the GATT server is disconnected, further retries are pointless.
+        if (isGattDisconnectedError(err)) {
+          logDebug &&
+            logDebug(
+              `btRetry: aborting retries because GATT server is disconnected: ${err}`
+            );
+          break; // stop retry loop; let caller fail fast
+        }
+
         const delay = baseDelay * Math.pow(1.2, attempt - 1);
-        log(`btRetry: attempt ${attempt} failed: ${err}. Retrying in ${delay}ms`);
+        logDebug &&
+          logDebug(
+            `btRetry: attempt ${attempt} failed: ${err}. Retrying in ${delay}ms`
+          );
         await new Promise((res) => setTimeout(res, delay));
       }
     }
     throw lastErr;
   }
+
 
   // ---------------------------------------------------------------------------
   // Auto-reconnect queue
@@ -1990,37 +2036,29 @@ const BleManager = (() => {
             );
           }
         );
-        try {
-          await btRetry(() => bikeState.controlPointChar.startNotifications());
-          log("Subscribed to FTMS Control Point indications.");
-        } catch (err) {
-          log(
-            "Could not start FTMS Control Point indications (non-fatal): " + err
-          );
-        }
+
+        // Fatal: if this fails, let connectToBike throw
+        await btRetry(() => bikeState.controlPointChar.startNotifications());
+        log("Subscribed to FTMS Control Point indications.");
       }
 
       bikeState.indoorBikeDataChar.addEventListener(
         "characteristicvaluechanged",
-        (ev) => parseIndoorBikeData(ev.target.value)
+        (ev) => {
+          const dv = ev.target.value;
+          parseIndoorBikeData(dv);
+        }
       );
-      try {
-        await btRetry(() => bikeState.indoorBikeDataChar.startNotifications());
-        log("Subscribed to FTMS Indoor Bike Data (0x2AD2).");
-      } catch (err) {
-        log("Could not start Indoor Bike Data notifications: " + err);
-      }
+
+      // Fatal: no Indoor Bike Data = no workout
+      await btRetry(() => bikeState.indoorBikeDataChar.startNotifications());
+      log("Subscribed to FTMS Indoor Bike Data (0x2AD2).");
 
       if (bikeState.controlPointChar) {
-        try {
-          await sendFtmsControlPoint(FTMS_OPCODES.requestControl, null);
-          await sendFtmsControlPoint(FTMS_OPCODES.startOrResume, null);
-          log("FTMS requestControl + startOrResume sent.");
-        } catch (err) {
-          log(
-            "Failed to send FTMS requestControl/startOrResume (non-fatal): " + err
-          );
-        }
+        // Fatal: if we can't claim control, treat the connection as failed
+        await sendFtmsControlPoint(FTMS_OPCODES.requestControl, null);
+        await sendFtmsControlPoint(FTMS_OPCODES.startOrResume, null);
+        log("FTMS requestControl + startOrResume sent.");
       }
 
       bikeConnected = true;
