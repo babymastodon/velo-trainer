@@ -727,6 +727,7 @@ function renderWorkoutSegmentPolygon({
 
   const w = width;
   const h = height;
+  console.log("width height", w, h);
 
   const x1 = (seg.startTimeSec / totalSec) * w;
   const x2 = (seg.endTimeSec / totalSec) * w;
@@ -777,6 +778,7 @@ function drawChart() {
   const w = chartWidth;
   const h = chartHeight;
   chartSvg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  chartSvg.setAttribute("shape-rendering", "crispEdges");
 
   const ftp = currentFtp || DEFAULT_FTP;
   const maxY = Math.max(200, ftp * 2);

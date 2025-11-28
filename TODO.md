@@ -3,7 +3,6 @@
 
 ## 🖥️ UI / UX Issues & Improvements
 - in product modals, or ideally local popup above FTP when selecting
-- there are white lines between the segments in the workout chart
 - there should be time tick marks on the x axis
 
 ## ⚙️ Workout Execution & Behavior
