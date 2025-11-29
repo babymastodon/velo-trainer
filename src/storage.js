@@ -220,49 +220,36 @@ export function savePickerState(state) {
 
 // --------------------------- directory helpers ---------------------------
 
-export async function pickZwoDirectoryHandle() {
+export async function pickZwoDirectory() {
   if (!("showDirectoryPicker" in window)) {
     alert("Selecting ZWO workouts requires a recent Chromium-based browser.");
     return null;
   }
 
-  if (!zwoDirHandle) {
-    try {
-      const stored = await loadZwoDirHandle();
-      if (stored) {
-        const ok = await ensureDirPermission(stored);
-        if (ok) {
-          zwoDirHandle = stored;
-          return zwoDirHandle;
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load ZWO dir handle: " + err);
-    }
-  }
+  try {
+    // Always force the user to pick a directory
+    const handle = await window.showDirectoryPicker();
 
-  if (!zwoDirHandle) {
-    try {
-      const handle = await window.showDirectoryPicker();
-      const ok = await ensureDirPermission(handle);
-      if (!ok) {
-        alert("Permission was not granted to the selected ZWO folder.");
-        return null;
-      }
-      zwoDirHandle = handle;
-      await saveZwoDirHandle(handle);
-    } catch (err) {
-      if (err && err.name === "AbortError") {
-        // user canceled
-        return null;
-      }
-      console.error("Error choosing ZWO folder: " + err);
-      alert("Failed to choose ZWO folder.");
+    const ok = await ensureDirPermission(handle);
+    if (!ok) {
+      alert("Permission was not granted to the selected ZWO folder.");
       return null;
     }
-  }
 
-  return zwoDirHandle;
+    // Save the newly chosen folder
+    zwoDirHandle = handle;
+    await saveZwoDirHandle(handle);
+
+    return zwoDirHandle;
+  } catch (err) {
+    if (err && err.name === "AbortError") {
+      // user canceled
+      return null;
+    }
+    console.error("Error choosing ZWO folder: " + err);
+    alert("Failed to choose ZWO folder.");
+    return null;
+  }
 }
 
 export async function ensureWorkoutDir() {

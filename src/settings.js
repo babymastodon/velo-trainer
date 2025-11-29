@@ -23,7 +23,7 @@ import {
   loadWorkoutDirHandle,
   loadZwoDirHandle,
   ensureWorkoutDir,          // selects / re-permissions history dir
-  ensureZwoDirectoryHandle,  // selects / re-permissions ZWO dir
+  pickZwoDirectory,  // selects / re-permissions ZWO dir
 } from "./storage.js";
 
 // --------------------------- DOM refs ---------------------------
@@ -224,12 +224,12 @@ async function handleChooseHistoryDir() {
 }
 
 async function handleChooseZwoDir() {
-  if (typeof ensureZwoDirectoryHandle !== "function") {
+  if (typeof pickZwoDirectory !== "function") {
     alert("Folder selection is not available in this build.");
     return;
   }
   try {
-    const handle = await ensureZwoDirectoryHandle();
+    const handle = await pickZwoDirectory();
     if (!handle) return;
     await refreshDirectoryStatuses();
   } catch (err) {

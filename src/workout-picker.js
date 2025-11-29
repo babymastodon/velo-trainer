@@ -17,11 +17,11 @@ import {
 import {renderMiniWorkoutGraph} from "./workout-chart.js";
 
 import {
-  ensureZwoDirectoryHandle,
   ensureDirPermission,
   loadPickerState,
   savePickerState,
   saveSelectedWorkout,
+  loadZwoDirHandle,
 } from "./storage.js";
 
 let instance = null;
@@ -463,7 +463,7 @@ function createWorkoutPicker(config) {
   // --------------------------- public API ---------------------------
 
   async function open() {
-    const handle = await ensureZwoDirectoryHandle();
+    const handle = await loadZwoDirHandle();
     if (!handle) {
       if (summaryEl) {
         summaryEl.textContent = "No ZWO folder selected.";
