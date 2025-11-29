@@ -33,6 +33,8 @@ const settingsOverlay = document.getElementById("settingsOverlay");
 const settingsModal = document.getElementById("settingsModal");
 const settingsCloseBtn = document.getElementById("settingsCloseBtn");
 const settingsOpenBtn = document.getElementById("settingsBtn");
+const settingsTitleEl = document.getElementById("settingsTitle");
+const settingsSubtitleEl = document.getElementById("settingsSubtitle");
 
 // Views inside modal
 const settingsMainView = document.getElementById("settingsMainView");
@@ -68,6 +70,15 @@ const btStatusText = document.getElementById("settingsBtStatusText");
 const helpToggleButtons = Array.from(
   document.querySelectorAll("[data-settings-help-toggle]")
 );
+
+
+const SETTINGS_TITLE_TEXT = "Settings";
+const SETTINGS_SUBTITLE_TEXT =
+  "Configure folders, FTP, sound, logs, and environment checks.";
+
+const LOGS_TITLE_TEXT = "Connection logs";
+const LOGS_SUBTITLE_TEXT = "Real-time connection and Bluetooth logs.";
+
 
 // --------------------------- Local state ---------------------------
 
@@ -107,23 +118,27 @@ function closeSettings() {
 }
 
 function showMainView() {
-  if (settingsMainView) settingsMainView.style.display = "";
-  if (settingsLogsView) settingsLogsView.style.display = "none";
+  settingsMainView.style.display = "";
+  settingsLogsView.style.display = "none";
+
+  settingsTitleEl.textContent = SETTINGS_TITLE_TEXT;
+  settingsSubtitleEl.textContent = SETTINGS_SUBTITLE_TEXT;
+
+  settingsBackFromLogsBtn.style.display = "none";
 }
 
 function showLogsView() {
-  if (settingsMainView) settingsMainView.style.display = "none";
-  if (settingsLogsView) {
-    settingsLogsView.style.display = "flex";
+  settingsMainView.style.display = "none";
+  settingsLogsView.style.display = "flex";
 
-    // Scroll to bottom on open
-    if (settingsLogsContent) {
-      // Use rAF so layout has updated before we scroll
-      requestAnimationFrame(() => {
-        settingsLogsContent.scrollTop = settingsLogsContent.scrollHeight;
-      });
-    }
-  }
+  settingsTitleEl.textContent = LOGS_TITLE_TEXT;
+  settingsSubtitleEl.textContent = LOGS_SUBTITLE_TEXT;
+
+  settingsBackFromLogsBtn.style.display = "inline-flex";
+
+  requestAnimationFrame(() => {
+    settingsLogsContent.scrollTop = settingsLogsContent.scrollHeight;
+  });
 }
 
 // --------------------------- Logs handling ---------------------------

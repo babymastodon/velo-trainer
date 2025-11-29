@@ -1050,6 +1050,12 @@
       flex-wrap: wrap;
     }
 
+    .settings-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .settings-header-main {
       display: flex;
       flex-direction: column;
@@ -1508,6 +1514,10 @@
       color: var(--text-muted);
     }
 
+    #settingsBackFromLogsBtn {
+      padding-left: 4px;
+    }
+
   </style>
 </head>
 
@@ -1600,9 +1610,14 @@
       <!-- Manual controls for ERG / Resistance -->
       <div id="manualControls" class="control-group" style="display:none">
         <button class="control-btn" data-delta="-10">-</button>
-        <div class="control-value"><span id="manualValue">0</span></div>
+        <div class="control-value">
+          <!-- Reuse the FTP input styling -->
+          <input id="manualInput" class="settings-ftp-input" type="number" inputmode="numeric" />
+          <span id="manualUnit" class="settings-ftp-unit"></span>
+        </div>
         <button class="control-btn" data-delta="10">+</button>
       </div>
+
 
       <!-- Workout controls: FTP + title + playback -->
       <div id="workoutControls" class="workout-controls">
@@ -1698,15 +1713,30 @@
     <div id="settingsModal" class="settings-modal" tabindex="-1">
       <header class="settings-header">
         <div class="settings-header-main">
-          <div class="settings-title">Settings</div>
-          <div class="settings-subtitle">Configure folders, FTP, sound, logs, and environment checks.</div>
+          <div id="settingsTitle" class="settings-title">Settings</div>
+          <div id="settingsSubtitle" class="settings-subtitle">
+            Configure folders, FTP, sound, logs, and environment checks.
+          </div>
         </div>
-        <button id="settingsCloseBtn" class="settings-close-btn" title="Close settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
-        </button>
+
+        <div class="settings-header-actions">
+          <button id="settingsBackFromLogsBtn" class="settings-button" type="button" style="display: none;">
+            <svg viewBox="0 0 24 24" aria-hidden="true"
+              style="width: 16px; height: 16px; display: block; stroke-width: 1.8;">
+              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+            <span>Back to settings</span>
+          </button>
+
+          <button id="settingsCloseBtn" class="settings-close-btn" title="Close settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
       </header>
+
 
       <div id="settingsAttentionBanner" class="settings-attention-banner"></div>
 
@@ -1938,12 +1968,6 @@
 
         <!-- Logs view -->
         <div id="settingsLogsView" class="settings-logs-view">
-          <div class="settings-logs-header">
-            <div class="settings-logs-title">Connection logs</div>
-            <button id="settingsBackFromLogsBtn" class="settings-button" type="button">
-              ← Back to settings
-            </button>
-          </div>
           <div id="settingsLogsContent" class="settings-logs-body"></div>
         </div>
       </div>

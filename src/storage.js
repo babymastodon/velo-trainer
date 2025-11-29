@@ -220,11 +220,7 @@ export function savePickerState(state) {
 
 // --------------------------- directory helpers ---------------------------
 
-function showZwoDirectoryPreselectMessage() {
-  alert("Pick the folder where your .zwo workout files will be saved.");
-}
-
-export async function ensureZwoDirectoryHandle() {
+export async function pickZwoDirectoryHandle() {
   if (!("showDirectoryPicker" in window)) {
     alert("Selecting ZWO workouts requires a recent Chromium-based browser.");
     return null;
@@ -247,7 +243,6 @@ export async function ensureZwoDirectoryHandle() {
 
   if (!zwoDirHandle) {
     try {
-      showZwoDirectoryPreselectMessage();
       const handle = await window.showDirectoryPicker();
       const ok = await ensureDirPermission(handle);
       if (!ok) {

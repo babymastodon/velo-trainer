@@ -47,7 +47,8 @@ const modeButtons = modeToggle
   : [];
 
 const manualControls = document.getElementById("manualControls");
-const manualValueEl = document.getElementById("manualValue");
+const manualInputEl = document.getElementById("manualInput");
+const manualUnitEl = document.getElementById("manualUnit");
 
 const workoutControls = document.getElementById("workoutControls");
 const startBtn = document.getElementById("startBtn");
@@ -420,15 +421,70 @@ function applyModeUI(vm) {
 
   if (vm.mode === "erg") {
     manualControls.style.display = "inline-flex";
-    manualValueEl.textContent = String(vm.manualErgTarget || 0);
+    if (manualInputEl) {
+      manualInputEl.value = String(vm.manualErgTarget || 0);
+    }
+    if (manualUnitEl) {
+      manualUnitEl.textContent = "W";
+    }
     workoutNameLabel.style.display = "flex";
   } else if (vm.mode === "resistance") {
     manualControls.style.display = "inline-flex";
-    manualValueEl.textContent = String(vm.manualResistance || 0);
+    if (manualInputEl) {
+      manualInputEl.value = String(vm.manualResistance || 0);
+    }
+    if (manualUnitEl) {
+      manualUnitEl.textContent = "%";
+    }
     workoutNameLabel.style.display = "flex";
   } else {
     manualControls.style.display = "none";
     workoutNameLabel.style.display = "flex";
+  }
+}
+
+function normaliseManualErgValue(raw, vm) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    return vm.manualErgTarget || vm.currentFtp || DEFAULT_FTP;
+  }
+  // Reasonable ERG bounds
+  return Math.min(1500, Math.max(50, Math.round(n)));
+}
+
+function normaliseManualResistanceValue(raw, vm) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    return vm.manualResistance || 0;
+  }
+  // Resistance as 0–100 %
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+function handleManualInputSave() {
+  if (!manualInputEl || !engine) return;
+
+  const vm = engine.getViewModel();
+  const raw = manualInputEl.value.trim();
+
+  if (vm.mode === "erg") {
+    const next = normaliseManualErgValue(raw, vm);
+    const current = vm.manualErgTarget || 0;
+    const delta = next - current;
+    if (delta) {
+      engine.adjustManualErg(delta);
+    } else {
+      manualInputEl.value = String(current);
+    }
+  } else if (vm.mode === "resistance") {
+    const next = normaliseManualResistanceValue(raw, vm);
+    const current = vm.manualResistance || 0;
+    const delta = next - current;
+    if (delta) {
+      engine.adjustManualResistance(delta);
+    } else {
+      manualInputEl.value = String(current);
+    }
   }
 }
 
@@ -467,28 +523,6 @@ function renderFromEngine(vm) {
   updatePlaybackButtons(vm);
   drawChart(vm);
   updateStatusOverlay(vm);
-}
-
-// --------------------------- FTP click handler ---------------------------
-
-async function handleFtpClick() {
-  if (!engine) return;
-  const vm = engine.getViewModel();
-  const current = vm.currentFtp || DEFAULT_FTP;
-  const input = window.prompt("Set FTP (50–500 W):", String(current));
-  if (input == null) return;
-
-  const n = Number(input);
-  if (!Number.isFinite(n)) return;
-  const clamped = Math.min(500, Math.max(50, Math.round(n)));
-  if (clamped === vm.currentFtp) return;
-
-  engine.setFtp(clamped);
-  try {
-    saveFtp(clamped);
-  } catch (err) {
-    console.error("[Workout] Failed to persist FTP:", err);
-  }
 }
 
 // --------------------------- Theme re-render ---------------------------
@@ -620,6 +654,21 @@ async function initPage() {
       } else if (vm.mode === "resistance") {
         engine.adjustManualResistance(delta);
       }
+    });
+  }
+
+  // Manual text input for ERG / Resistance
+  if (manualInputEl) {
+    manualInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleManualInputSave();
+        manualInputEl.blur();
+      }
+    });
+
+    manualInputEl.addEventListener("blur", () => {
+      handleManualInputSave();
     });
   }
 
