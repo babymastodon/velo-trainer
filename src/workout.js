@@ -34,6 +34,7 @@ const chartSvg = document.getElementById("chartSvg");
 const chartPanel = document.getElementById("chartPanel");
 const chartTooltip = document.getElementById("chartTooltip");
 const noBikeOverlay = document.getElementById("noBikeOverlay");
+const noWorkoutOverlay = document.getElementById("noWorkoutOverlay");
 
 const bikeConnectBtn = document.getElementById("bikeConnectBtn");
 const bikeStatusDot = document.getElementById("bikeStatusDot");
@@ -101,9 +102,9 @@ function formatTimeHHMMSS(sec) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const ss = s % 60;
-  const hh = String(h).padStart(2, "0");
-  const mm = String(m).padStart(2, "0");
-  const sss = String(ss).padStart(2, "0");
+  const hh = String(h).padStart(2, "00");
+  const mm = String(m).padStart(2, "00");
+  const sss = String(ss).padStart(2, "00");
   return `${hh}:${mm}:${sss}`;
 }
 
@@ -321,11 +322,23 @@ function updateStatsDisplay(vm) {
 function drawChart(vm) {
   if (!chartSvg || !chartPanel) return;
 
-  // Empty state when no bike is connected: big message + hand-drawn arrow.
-  if (!bikeConnected) {
-    if (noBikeOverlay) {
-      noBikeOverlay.style.display = "flex";
-    }
+  // Decide which empty state (if any) to show.
+  const showNoBike = !bikeConnected;
+  const showNoWorkout =
+    bikeConnected &&
+    vm &&
+    vm.mode === "workout" &&
+    !vm.workoutMeta &&
+    !vm.workoutRunning;
+
+  if (noBikeOverlay) {
+    noBikeOverlay.style.display = showNoBike ? "flex" : "none";
+  }
+  if (noWorkoutOverlay) {
+    noWorkoutOverlay.style.display = showNoWorkout ? "flex" : "none";
+  }
+
+  if (showNoBike || showNoWorkout) {
     chartSvg.style.visibility = "hidden";
 
     // Clear any existing SVG content
@@ -339,10 +352,7 @@ function drawChart(vm) {
     return;
   }
 
-  // Bike is connected → render chart as usual.
-  if (noBikeOverlay) {
-    noBikeOverlay.style.display = "none";
-  }
+  // Normal chart rendering
   chartSvg.style.visibility = "visible";
 
   updateChartDimensions();
