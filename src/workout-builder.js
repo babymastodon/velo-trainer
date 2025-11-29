@@ -374,6 +374,16 @@ export function createWorkoutBuilder(options) {
       '<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />';
   }
 
+  function convertSegments(segments) {
+    return segments.map(s => {
+      const minutes = Math.round(s.durationSec / 60);          // 60 sec → 1
+      const startPct = Math.round(s.pStartRel * 100);          // 0.40 → 40
+      const endPct = Math.round(s.pEndRel * 100);              // 0.40 → 40
+      return [minutes, startPct, endPct];
+    });
+  }
+
+
   function handleAnyChange(opts = {}) {
     const {skipParse = false} = opts;
 
@@ -388,7 +398,7 @@ export function createWorkoutBuilder(options) {
 
     if (currentSegments.length && ftp > 0) {
       currentMetrics = computeMetricsFromSegments(currentSegments, ftp);
-      currentCategory = inferCategoryFromSegments(currentSegments);
+      currentCategory = inferCategoryFromSegments(convertSegments(currentSegments));
     } else {
       currentMetrics = {
         totalSec: 0,
@@ -765,61 +775,252 @@ export function createWorkoutBuilder(options) {
   // ---------- URL import (using page URL, not a .zwo URL) ----------
 
   async function importFromUrl(inputUrl) {
-    // NOTE: This is intentionally light and meant to be extended.
     const url = new URL(inputUrl);
 
     if (url.host.includes("trainerday.com")) {
-      // Example: https://app.trainerday.com/workouts/<slug>
-      const slugMatch = url.pathname.match(/\/workouts\/([^/?#]+)/);
-      if (!slugMatch) return null;
-      const slug = slugMatch[1];
-      const apiUrl = `https://app.api.trainerday.com/api/workouts/bySlug/${encodeURIComponent(
-        slug,
-      )}`;
-      const res = await fetch(apiUrl, {credentials: "omit"});
-      if (!res.ok) throw new Error(`HTTP ${res.status} from TrainerDay API`);
-      const json = await res.json();
-      if (!Array.isArray(json.segments) || !json.segments.length) {
-        return null;
-      }
-
-      // segments: [minutes, startPct, endPct?]
-      const lines = json.segments.map((seg) => {
-        const minutes = Number(seg[0]);
-        const startPct = Number(seg[1]);
-        const endPct =
-          seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
-        const durSec = Math.round(minutes * 60);
-        const pLow = (startPct / 100).toFixed(2);
-        const pHigh = (endPct / 100).toFixed(2);
-        if (pLow === pHigh) {
-          return `<SteadyState Duration="${durSec}" Power="${pLow}" />`;
-        }
-        if (pHigh > pLow) {
-          return `<Warmup Duration="${durSec}" PowerLow="${pLow}" PowerHigh="${pHigh}" />`;
-        }
-        return `<Cooldown Duration="${durSec}" PowerLow="${pLow}" PowerHigh="${pHigh}" />`;
-      });
-
-      // Also populate metadata if available
-      if (json.title) nameField.input.value = json.title;
-      if (json.description) {
-        descField.textarea.value = json.description;
-        autoGrowTextarea(descField.textarea);
-      }
-      sourceField.input.value = "TrainerDay";
-
-      return lines.join("\n");
+      return importFromTrainerDay(url);
     }
 
-    // TODO: trainerroad.com, whatsonzwift.com, other sources.
-    // Can be implemented by mirroring content.js logic with fetch()
-    // + HTML parsing and calling computeMetricsFromSegments / inferCategoryFromSegments.
+    if (url.host.includes("whatsonzwift.com")) {
+      return importFromWhatsOnZwift(url);
+    }
+
     console.info(
-      "[WorkoutBuilder] Import-from-URL currently only implemented for TrainerDay; got",
+      "[WorkoutBuilder] Import-from-URL currently only implemented for TrainerDay and WhatsOnZwift; got",
       url.host,
     );
     return null;
+  }
+
+  /**
+ * Convert an array of [minutes, startPct, endPct] into ZWO lines.
+ * Percent values are integers like 40 (for 40% FTP).
+ */
+  function segmentsToZwoSnippet(segments, opts = {}) {
+    const lines = segments.map((seg) => {
+      const minutes = Number(seg[0]);
+      const startPct = Number(seg[1]);
+      const endPct = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
+
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        return null;
+      }
+
+      const durSec = Math.round(minutes * 60);
+      const pLow = (startPct / 100).toFixed(2);
+      const pHigh = (endPct / 100).toFixed(2);
+
+      if (pLow === pHigh) {
+        return `<SteadyState Duration="${durSec}" Power="${pLow}" />`;
+      }
+      if (pHigh > pLow) {
+        return `<Warmup Duration="${durSec}" PowerLow="${pLow}" PowerHigh="${pHigh}" />`;
+      }
+      return `<Cooldown Duration="${durSec}" PowerLow="${pLow}" PowerHigh="${pHigh}" />`;
+    });
+
+    return lines.filter(Boolean).join("\n");
+  }
+
+  // ---------- TrainerDay ----------
+
+  async function importFromTrainerDay(url) {
+    // Example: https://app.trainerday.com/workouts/<slug>
+    const slugMatch = url.pathname.match(/\/workouts\/([^/?#]+)/);
+    if (!slugMatch) return null;
+    const slug = slugMatch[1];
+
+    const apiUrl = `https://app.api.trainerday.com/api/workouts/bySlug/${encodeURIComponent(
+      slug,
+    )}`;
+
+    const res = await fetch(apiUrl, {credentials: "omit"});
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} from TrainerDay API`);
+    }
+
+    const json = await res.json();
+    if (!Array.isArray(json.segments) || !json.segments.length) {
+      return null;
+    }
+
+    // TrainerDay segments: [minutes, startPct, endPct?]
+    const segments = json.segments.map((seg) => {
+      const minutes = Number(seg[0]);
+      const startPct = Number(seg[1]);
+      const endPct =
+        seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
+      return [minutes, startPct, endPct];
+    });
+
+    // Also populate metadata if available
+    if (json.title) nameField.input.value = json.title;
+    if (json.description) descField.textarea.value = json.description;
+    sourceField.input.value = "TrainerDay";
+
+    return segmentsToZwoSnippet(segments);
+  }
+
+  // ---------- Whats On Zwift ----------
+  function extractWozTitleFromDoc(doc) {
+    const el = doc.querySelector("header.my-8 h1");
+    return el ? el.textContent.trim() : "WhatsOnZwift Workout";
+  }
+
+  function extractWozDescriptionFromDoc(doc) {
+    const ul = doc.querySelector("ul.items-baseline");
+    if (!ul) return "";
+    let el = ul.previousElementSibling;
+    while (el) {
+      if (el.tagName && el.tagName.toLowerCase() === "p") {
+        return el.textContent.trim();
+      }
+      el = el.previousElementSibling;
+    }
+    return "";
+  }
+
+  // Returns array of { minutes, startPct, endPct }
+  function extractWozSegmentsFromDoc(doc) {
+    const container = doc.querySelector("div.order-2");
+    if (!container) {
+      console.warn("[WorkoutBuilder][WhatsOnZwift] order-2 container not found.");
+      return [];
+    }
+
+    const bars = Array.from(container.querySelectorAll(".textbar"));
+    const segments = [];
+
+    for (const bar of bars) {
+      const text = (bar.textContent || "").replace(/\s+/g, " ").trim();
+      const powSpans = bar.querySelectorAll(
+        'span[data-unit="relpow"][data-value]',
+      );
+
+      // --- Intervals like "5x 4min @ 72% FTP, 2min @ 52% FTP" / "5x 30sec ..." ---
+      const repMatch = text.match(/(\d+)\s*x\b/i);
+      if (repMatch && powSpans.length >= 2) {
+        const reps = parseInt(repMatch[1], 10);
+        if (Number.isFinite(reps) && reps > 0) {
+          const durMatches = Array.from(
+            text.matchAll(/(\d+(?:\.\d+)?)\s*(min|sec)/gi),
+          );
+          const durations = durMatches
+            .map((m) => {
+              const val = parseFloat(m[1]);
+              const unit = (m[2] || "").toLowerCase();
+              if (!Number.isFinite(val)) return null;
+              if (unit === "sec") return val / 60;
+              return val; // minutes
+            })
+            .filter((v) => v != null);
+
+          if (durations.length >= 2) {
+            const onMinutes = durations[0];
+            const offMinutes = durations[1];
+
+            const pOn = Number(powSpans[0].getAttribute("data-value"));
+            const pOff = Number(powSpans[1].getAttribute("data-value"));
+
+            if (
+              Number.isFinite(onMinutes) &&
+              onMinutes > 0 &&
+              Number.isFinite(offMinutes) &&
+              offMinutes > 0 &&
+              Number.isFinite(pOn) &&
+              Number.isFinite(pOff)
+            ) {
+              for (let i = 0; i < reps; i++) {
+                segments.push({
+                  minutes: onMinutes,
+                  startPct: pOn,
+                  endPct: pOn,
+                });
+                segments.push({
+                  minutes: offMinutes,
+                  startPct: pOff,
+                  endPct: pOff,
+                });
+              }
+              continue; // handled this bar
+            }
+          }
+        }
+      }
+
+      // --- Regular single-interval bars (including ramps & seconds) ---
+
+      // Duration: minutes first, then seconds
+      let minutes = null;
+      const minMatch = text.match(/(\d+)\s*min/i);
+      if (minMatch) {
+        minutes = Number(minMatch[1]);
+      } else {
+        const secMatch = text.match(/(\d+)\s*sec/i);
+        if (secMatch) {
+          const secs = Number(secMatch[1]);
+          if (Number.isFinite(secs)) {
+            minutes = secs / 60;
+          }
+        }
+      }
+      if (!Number.isFinite(minutes) || minutes <= 0) continue;
+
+      if (powSpans.length === 1) {
+        const pct = Number(powSpans[0].getAttribute("data-value"));
+        if (!Number.isFinite(pct)) continue;
+        segments.push({
+          minutes,
+          startPct: pct,
+          endPct: pct,
+        });
+      } else if (powSpans.length >= 2) {
+        const pctLow = Number(powSpans[0].getAttribute("data-value"));
+        const pctHigh = Number(powSpans[1].getAttribute("data-value"));
+        if (!Number.isFinite(pctLow) || !Number.isFinite(pctHigh)) continue;
+        segments.push({
+          minutes,
+          startPct: pctLow,
+          endPct: pctHigh,
+        });
+      }
+    }
+
+    return segments;
+  }
+
+  async function importFromWhatsOnZwift(url) {
+    const res = await fetch(url.toString(), {credentials: "omit"});
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} from WhatsOnZwift`);
+    }
+
+    const html = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    const wozSegments = extractWozSegmentsFromDoc(doc);
+    if (!wozSegments || !wozSegments.length) {
+      console.warn(
+        "[WorkoutBuilder][WhatsOnZwift] No segments extracted from DOM.",
+      );
+      return null;
+    }
+
+    const segments = wozSegments.map((s) => [
+      s.minutes,
+      s.startPct,
+      s.endPct,
+    ]);
+
+    const title = extractWozTitleFromDoc(doc);
+    const description = extractWozDescriptionFromDoc(doc);
+
+    if (title) nameField.input.value = title;
+    if (description) descField.textarea.value = description;
+    sourceField.input.value = "WhatsOnZwift";
+
+    return segmentsToZwoSnippet(segments);
   }
 
   // ---------- Small DOM helpers ----------
