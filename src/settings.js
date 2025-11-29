@@ -23,7 +23,7 @@ import {
   loadWorkoutDirHandle,
   loadZwoDirHandle,
   pickWorkoutDir,          // selects / re-permissions history dir
-  pickZwoDirectory,  // selects / re-permissions ZWO dir
+  pickZwoDirectory,        // selects / re-permissions ZWO dir
 } from "./storage.js";
 
 // --------------------------- DOM refs ---------------------------
@@ -71,14 +71,12 @@ const helpToggleButtons = Array.from(
   document.querySelectorAll("[data-settings-help-toggle]")
 );
 
-
 const SETTINGS_TITLE_TEXT = "Settings";
 const SETTINGS_SUBTITLE_TEXT =
   "Configure folders, FTP, sound, logs, and environment checks.";
 
 const LOGS_TITLE_TEXT = "Connection logs";
 const LOGS_SUBTITLE_TEXT = "Real-time connection and Bluetooth logs.";
-
 
 // --------------------------- Local state ---------------------------
 
@@ -91,6 +89,9 @@ let startupNeedsAttention = {
   missingZwoDir: false,
   missingBtSupport: false,
 };
+
+// If true, the user isn't allowed to dismiss the Settings modal
+let hasBlockingSettingsIssues = false;
 
 // --------------------------- Utility helpers ---------------------------
 
@@ -110,33 +111,63 @@ function openSettings() {
   settingsModal.focus?.();
 }
 
-function closeSettings() {
+function actuallyCloseSettings() {
   if (!settingsOverlay) return;
   settingsOverlay.style.display = "none";
   // When closing, show main view again
   showMainView();
 }
 
+function canDismissSettings() {
+  if (!hasBlockingSettingsIssues) return true;
+
+  alert("Please fix the highlighted settings before closing the Settings window.");
+  settingsModal?.focus?.();
+  return false;
+}
+
+function closeSettings() {
+  if (!canDismissSettings()) return;
+  actuallyCloseSettings();
+}
+
 function showMainView() {
+  if (!settingsMainView || !settingsLogsView) return;
+
   settingsMainView.style.display = "";
   settingsLogsView.style.display = "none";
 
-  settingsTitleEl.textContent = SETTINGS_TITLE_TEXT;
-  settingsSubtitleEl.textContent = SETTINGS_SUBTITLE_TEXT;
+  if (settingsTitleEl) {
+    settingsTitleEl.textContent = SETTINGS_TITLE_TEXT;
+  }
+  if (settingsSubtitleEl) {
+    settingsSubtitleEl.textContent = SETTINGS_SUBTITLE_TEXT;
+  }
 
-  settingsBackFromLogsBtn.style.display = "none";
+  if (settingsBackFromLogsBtn) {
+    settingsBackFromLogsBtn.style.display = "none";
+  }
 }
 
 function showLogsView() {
+  if (!settingsMainView || !settingsLogsView) return;
+
   settingsMainView.style.display = "none";
   settingsLogsView.style.display = "flex";
 
-  settingsTitleEl.textContent = LOGS_TITLE_TEXT;
-  settingsSubtitleEl.textContent = LOGS_SUBTITLE_TEXT;
+  if (settingsTitleEl) {
+    settingsTitleEl.textContent = LOGS_TITLE_TEXT;
+  }
+  if (settingsSubtitleEl) {
+    settingsSubtitleEl.textContent = LOGS_SUBTITLE_TEXT;
+  }
 
-  settingsBackFromLogsBtn.style.display = "inline-flex";
+  if (settingsBackFromLogsBtn) {
+    settingsBackFromLogsBtn.style.display = "inline-flex";
+  }
 
   requestAnimationFrame(() => {
+    if (!settingsLogsContent) return;
     settingsLogsContent.scrollTop = settingsLogsContent.scrollHeight;
   });
 }
@@ -179,6 +210,7 @@ async function refreshDirectoryStatuses() {
       historyDirStatusEl.textContent = name;
       historyDirStatusEl.classList.remove("settings-status-missing");
       historyDirStatusEl.classList.add("settings-status-ok");
+      startupNeedsAttention.missingHistoryDir = false;
     } else {
       historyDirStatusEl.textContent = "Not configured";
       historyDirStatusEl.classList.remove("settings-status-ok");
@@ -191,6 +223,7 @@ async function refreshDirectoryStatuses() {
       zwoDirStatusEl.textContent = name;
       zwoDirStatusEl.classList.remove("settings-status-missing");
       zwoDirStatusEl.classList.add("settings-status-ok");
+      startupNeedsAttention.missingZwoDir = false;
     } else {
       zwoDirStatusEl.textContent = "Not configured";
       zwoDirStatusEl.classList.remove("settings-status-ok");
@@ -205,6 +238,10 @@ async function refreshDirectoryStatuses() {
     zwoDirStatusEl.classList.remove("settings-status-ok");
     historyDirStatusEl.classList.add("settings-status-missing");
     zwoDirStatusEl.classList.add("settings-status-missing");
+
+    // Treat this as blocking too
+    startupNeedsAttention.missingHistoryDir = true;
+    startupNeedsAttention.missingZwoDir = true;
   }
 }
 
@@ -217,6 +254,7 @@ async function handleChooseHistoryDir() {
     const handle = await pickWorkoutDir();
     if (!handle) return;
     await refreshDirectoryStatuses();
+    updateAttentionBanner();
   } catch (err) {
     console.error("[Settings] Failed to choose history folder:", err);
     alert("Failed to choose workout history folder.");
@@ -232,6 +270,7 @@ async function handleChooseZwoDir() {
     const handle = await pickZwoDirectory();
     if (!handle) return;
     await refreshDirectoryStatuses();
+    updateAttentionBanner();
   } catch (err) {
     console.error("[Settings] Failed to choose ZWO folder:", err);
     alert("Failed to choose workout library (.zwo) folder.");
@@ -335,9 +374,7 @@ function refreshEnvironmentStatus() {
     btStatusText.classList.toggle("settings-status-missing", !hasBt);
   }
 
-  if (!hasBt) {
-    startupNeedsAttention.missingBtSupport = true;
-  }
+  startupNeedsAttention.missingBtSupport = !hasBt;
 }
 
 // --------------------------- Attention banner ---------------------------
@@ -346,12 +383,19 @@ function updateAttentionBanner() {
   if (!settingsAttentionBanner) return;
 
   const issues = [];
+
   if (startupNeedsAttention.missingHistoryDir || startupNeedsAttention.missingZwoDir) {
     issues.push("Select workout history & library folders.");
   }
   if (startupNeedsAttention.missingBtSupport) {
     issues.push("Use a supported browser with Web Bluetooth (Chrome on desktop/Android).");
   }
+
+  // Any of these issues are now considered blocking, including Bluetooth.
+  hasBlockingSettingsIssues =
+    startupNeedsAttention.missingHistoryDir ||
+    startupNeedsAttention.missingZwoDir ||
+    startupNeedsAttention.missingBtSupport;
 
   if (!issues.length) {
     settingsAttentionBanner.style.display = "none";
@@ -415,12 +459,7 @@ function initHelpToggles() {
 function wireSettingsEvents() {
   if (settingsOpenBtn) {
     settingsOpenBtn.addEventListener("click", () => {
-      // When manually opened, clear startup flags on banner
-      startupNeedsAttention = {
-        missingHistoryDir: false,
-        missingZwoDir: false,
-        missingBtSupport: false,
-      };
+      // Don't reset error flags; they reflect real config state.
       updateAttentionBanner();
       openSettings();
     });
