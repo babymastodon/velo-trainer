@@ -27,6 +27,11 @@ export function createWorkoutBuilder(options) {
   let currentMetrics = null;
   let currentCategory = null;
 
+  // Hard safety limits to avoid runaway durations / repeats
+  const MAX_SEGMENT_DURATION_SEC = 12 * 3600;   // 12 hours per segment
+  const MAX_WORKOUT_DURATION_SEC = 24 * 3600;   // 24 hours total workout
+  const MAX_INTERVAL_REPEATS = 500;             // sanity cap on repeats
+
   // ---------- Layout ----------
   rootEl.innerHTML = "";
   rootEl.classList.add("workout-builder-root");
@@ -589,13 +594,7 @@ export function createWorkoutBuilder(options) {
     const duration = durStr != null ? Number(durStr) : NaN;
     const power = pStr != null ? Number(pStr) : NaN;
 
-    if (!Number.isFinite(duration) || duration <= 0) {
-      errors.push({
-        start,
-        end,
-        message:
-          'SteadyState must have a positive numeric Duration (seconds).',
-      });
+    if (!validateDuration(duration, "SteadyState", start, end, errors)) {
       return;
     }
     if (!Number.isFinite(power) || power <= 0) {
@@ -623,12 +622,7 @@ export function createWorkoutBuilder(options) {
     const pLow = loStr != null ? Number(loStr) : NaN;
     const pHigh = hiStr != null ? Number(hiStr) : NaN;
 
-    if (!Number.isFinite(duration) || duration <= 0) {
-      errors.push({
-        start,
-        end,
-        message: `${tagName} must have a positive numeric Duration (seconds).`,
-      });
+    if (!validateDuration(duration, tagName, start, end, errors)) {
       return;
     }
     if (!Number.isFinite(pLow) || !Number.isFinite(pHigh)) {
@@ -648,6 +642,26 @@ export function createWorkoutBuilder(options) {
     });
   }
 
+  function validateDuration(duration, tagName, start, end, errors) {
+    if (!Number.isFinite(duration) || duration <= 0) {
+      errors.push({
+        start,
+        end,
+        message: `${tagName} must have a positive numeric Duration (seconds).`,
+      });
+      return false;
+    }
+    if (duration > MAX_SEGMENT_DURATION_SEC) {
+      errors.push({
+        start,
+        end,
+        message: `${tagName} Duration is unrealistically large (max ${MAX_SEGMENT_DURATION_SEC} seconds).`,
+      });
+      return false;
+    }
+    return true;
+  }
+
   function handleIntervals(attrs, segments, errors, start, end) {
     const repStr = attrs.Repeat;
     const onDurStr = attrs.OnDuration;
@@ -661,25 +675,29 @@ export function createWorkoutBuilder(options) {
     const onPow = onPowStr != null ? Number(onPowStr) : NaN;
     const offPow = offPowStr != null ? Number(offPowStr) : NaN;
 
-    if (!Number.isFinite(repeat) || repeat <= 0) {
+    if (!Number.isFinite(repeat) || repeat <= 0 || repeat > MAX_INTERVAL_REPEATS) {
       errors.push({
         start,
         end,
-        message: "IntervalsT must have Repeat as a positive integer.",
+        message: `IntervalsT must have Repeat as a positive integer (max ${MAX_INTERVAL_REPEATS}).`,
       });
       return;
     }
-    if (
-      !Number.isFinite(onDur) ||
-      onDur <= 0 ||
-      !Number.isFinite(offDur) ||
-      offDur <= 0
-    ) {
+
+    if (!validateDuration(onDur, "IntervalsT OnDuration", start, end, errors)) {
+      return;
+    }
+    if (!validateDuration(offDur, "IntervalsT OffDuration", start, end, errors)) {
+      return;
+    }
+
+    // Also guard the total workout time this block would create
+    const totalBlockSec = repeat * (onDur + offDur);
+    if (!Number.isFinite(totalBlockSec) || totalBlockSec > MAX_WORKOUT_DURATION_SEC) {
       errors.push({
         start,
         end,
-        message:
-          "IntervalsT must have positive OnDuration and OffDuration (seconds).",
+        message: "IntervalsT total duration is unrealistically large.",
       });
       return;
     }
