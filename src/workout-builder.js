@@ -769,6 +769,7 @@ export function createWorkoutBuilder(options) {
   }
 
   // ---------- Small DOM helpers ----------
+
   function escapeHtml(str) {
     return (str || "").replace(/[&<>"]/g, (c) => {
       switch (c) {
@@ -780,19 +781,15 @@ export function createWorkoutBuilder(options) {
     });
   }
 
-  /**
-   * Highlight all lines that overlap any syntax error range.
-   * Uses currentErrors (array of {start,end,message}) and codeTextarea.value.
-   */
-
   function updateErrorHighlights() {
     if (!codeHighlights) return;
 
     const text = codeTextarea.value || "";
     const lines = text.split("\n");
+    const lineCount = lines.length;
 
+    // No errors: just mirror text so height stays in sync
     if (!currentErrors.length) {
-      // No errors: just mirror the lines so height stays in sync
       const html = lines
         .map((line) => `<div>${escapeHtml(line) || " "}</div>`)
         .join("");
@@ -800,23 +797,53 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
-    // Compute which line indices are touched by any error range
+    // Build a table of where each line starts (by char index)
+    const lineOffsets = [];
+    let offset = 0;
+    for (let i = 0; i < lineCount; i += 1) {
+      lineOffsets.push(offset);
+      // +1 for the newline char that was split away
+      offset += lines[i].length + 1;
+    }
+
+    function indexToLine(idx) {
+      if (!Number.isFinite(idx)) return 0;
+      if (idx <= 0) return 0;
+      if (idx >= text.length) return lineCount - 1;
+
+      // Simple linear search is fine here (text is small),
+      // but you could do binary search if you ever need it faster.
+      for (let i = 0; i < lineOffsets.length; i += 1) {
+        const start = lineOffsets[i];
+        const nextStart = i + 1 < lineOffsets.length ? lineOffsets[i + 1] : Infinity;
+        if (idx >= start && idx < nextStart) {
+          return i;
+        }
+      }
+      return lineCount - 1;
+    }
+
     const errorLines = new Set();
 
-    currentErrors.forEach((err) => {
-      const start = Math.max(0, err.start || 0);
-      const end = Math.max(start, err.end || start);
+    for (const err of currentErrors) {
+      let start = Number.isFinite(err.start) ? err.start : 0;
+      let end = Number.isFinite(err.end) ? err.end : start;
 
-      const beforeStart = text.slice(0, start);
-      const beforeEnd = text.slice(0, end);
+      // Clamp to valid range of characters
+      start = Math.max(0, Math.min(start, text.length));
+      end = Math.max(start, Math.min(end, text.length));
 
-      const startLine = beforeStart.split("\n").length - 1;
-      const endLine = beforeEnd.split("\n").length - 1;
+      const startLine = indexToLine(start);
+      const endLine = indexToLine(end);
 
-      for (let i = startLine; i <= endLine; i += 1) {
+      // Clamp line indices defensively too
+      const s = Math.max(0, Math.min(startLine, lineCount - 1));
+      const e = Math.max(s, Math.min(endLine, lineCount - 1));
+
+      for (let i = s; i <= e; i += 1) {
         errorLines.add(i);
       }
-    });
+    }
 
     const html = lines
       .map((line, idx) => {
@@ -830,7 +857,6 @@ export function createWorkoutBuilder(options) {
 
     codeHighlights.innerHTML = html;
   }
-
 
   function createWorkoutElementIcon(kind) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
