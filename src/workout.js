@@ -19,7 +19,6 @@ import {
 } from "./workout-chart.js";
 
 import {DEFAULT_FTP} from "./workout-metrics.js";
-import {saveFtp} from "./storage.js";
 import {initSettings, addLogLineToSettings} from "./settings.js";
 
 // --------------------------- DOM refs ---------------------------
