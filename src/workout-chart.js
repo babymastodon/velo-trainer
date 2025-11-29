@@ -344,11 +344,13 @@ export function drawWorkoutChart({
   tooltipEl,
   width,
   height,
+  mode,
   ftp,
   scaledSegments,
   totalSec,
   elapsedSec,
   liveSamples,
+  manualErgTarget,
 }) {
   if (!svg || !panel) return;
   clearSvg(svg);
@@ -387,7 +389,7 @@ export function drawWorkoutChart({
   const safeTotalSec = totalSec || 1;
 
   // workout segments
-  if (scaledSegments && scaledSegments.length) {
+  if (mode === "workout" && scaledSegments && scaledSegments.length) {
     scaledSegments.forEach((seg) => {
       renderWorkoutSegmentPolygon({
         svg,
@@ -398,6 +400,29 @@ export function drawWorkoutChart({
         ftp,
         maxY,
       });
+    });
+  }
+
+  // ERG mode target
+  if (mode === "erg") {
+    const pctFtp = manualErgTarget / ((ftp > 0) ? ftp : DEFAULT_FTP);
+    const seg = {
+      durationSec: safeTotalSec,
+      startTimeSec: 0,
+      endTimeSec: safeTotalSec,
+      targetWattsStart: manualErgTarget,
+      targetWattsEnd: manualErgTarget,
+      pStartRel: pctFtp,
+      pEndRel: pctFtp,
+    };
+    renderWorkoutSegmentPolygon({
+      svg,
+      seg,
+      totalSec: safeTotalSec,
+      width: w,
+      height: h,
+      ftp,
+      maxY,
     });
   }
 

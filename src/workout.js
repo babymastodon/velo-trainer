@@ -501,6 +501,7 @@ function drawChart(vm) {
     totalSec: vm.workoutTotalSec,
     elapsedSec: vm.elapsedSec,
     liveSamples: vm.liveSamples,
+    manualErgTarget: vm.manualErgTarget,
   });
 }
 
