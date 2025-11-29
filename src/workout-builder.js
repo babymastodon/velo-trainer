@@ -123,6 +123,56 @@ export function createWorkoutBuilder(options) {
   const codeCard = document.createElement("div");
   codeCard.className = "wb-card wb-code-card";
 
+  // URL import card
+  const importCard = document.createElement("div");
+  importCard.className = "wb-card wb-code-card";
+  const urlSection = document.createElement("div");
+  urlSection.className = "wb-url-section";
+
+  const urlTitle = document.createElement("div");
+  urlTitle.className = "wb-section-title";
+  urlTitle.textContent = "Import from URL";
+
+  const urlRow = document.createElement("div");
+  urlRow.className = "wb-url-row";
+
+  const urlInput = document.createElement("input");
+  urlInput.type = "url";
+  urlInput.placeholder =
+    "Paste a TrainerDay / TrainerRoad / WhatsOnZwift workout URL";
+  urlInput.className = "wb-url-input";
+
+  const urlBtn = document.createElement("button");
+  urlBtn.type = "button";
+  urlBtn.className = "picker-add-btn";
+  urlBtn.textContent = "Import";
+
+  urlRow.appendChild(urlInput);
+  urlRow.appendChild(urlBtn);
+  urlSection.appendChild(urlTitle);
+  urlSection.appendChild(urlRow);
+
+  // Error row
+  const errorRow = document.createElement("div");
+  errorRow.className = "wb-code-error-row";
+
+  const errorLabel = document.createElement("div");
+  errorLabel.className = "wb-code-error-label";
+  errorLabel.textContent = "Status:";
+
+  const errorMessage = document.createElement("div");
+  errorMessage.className = "wb-code-error-message wb-code-error-message--neutral";
+  errorMessage.textContent = "Not checked yet.";
+
+  errorRow.appendChild(errorLabel);
+  errorRow.appendChild(errorMessage);
+
+  importCard.appendChild(urlSection);
+  importCard.appendChild(errorRow);
+
+  colCode.appendChild(importCard);
+
+
   // Toolbar with ZWO elements
   const toolbar = document.createElement("div");
   toolbar.className = "wb-code-toolbar";
@@ -220,59 +270,10 @@ export function createWorkoutBuilder(options) {
   codeWrapper.appendChild(codeTextarea);
   textareaWrapper.appendChild(codeWrapper);
 
-  // Error row
-  const errorRow = document.createElement("div");
-  errorRow.className = "wb-code-error-row";
-
-  const errorLabel = document.createElement("div");
-  errorLabel.className = "wb-code-error-label";
-  errorLabel.textContent = "Syntax:";
-
-  const errorMessage = document.createElement("div");
-  errorMessage.className = "wb-code-error-message wb-code-error-message--neutral";
-  errorMessage.textContent = "Not checked yet.";
-
-  errorRow.appendChild(errorLabel);
-  errorRow.appendChild(errorMessage);
-
   codeCard.appendChild(toolbar);
   codeCard.appendChild(textareaWrapper);
-  codeCard.appendChild(errorRow);
 
   colCode.appendChild(codeCard);
-
-  // URL import under textarea
-  const importCard = document.createElement("div");
-  importCard.className = "wb-card wb-code-card";
-  const urlSection = document.createElement("div");
-  urlSection.className = "wb-url-section";
-
-  const urlTitle = document.createElement("div");
-  urlTitle.className = "wb-section-title";
-  urlTitle.textContent = "Import from URL";
-
-  const urlRow = document.createElement("div");
-  urlRow.className = "wb-url-row";
-
-  const urlInput = document.createElement("input");
-  urlInput.type = "url";
-  urlInput.placeholder =
-    "Paste a TrainerDay / TrainerRoad / WhatsOnZwift workout URL";
-  urlInput.className = "wb-url-input";
-
-  const urlBtn = document.createElement("button");
-  urlBtn.type = "button";
-  urlBtn.className = "picker-add-btn";
-  urlBtn.textContent = "Import";
-
-  urlRow.appendChild(urlInput);
-  urlRow.appendChild(urlBtn);
-  urlSection.appendChild(urlTitle);
-  urlSection.appendChild(urlRow);
-
-  importCard.appendChild(urlSection);
-
-  colCode.appendChild(importCard);
 
   // ---------- Events ----------
 
@@ -318,6 +319,7 @@ export function createWorkoutBuilder(options) {
 
       codeTextarea.value = snippet.trim();
       handleAnyChange();
+      refreshLayout();
     } catch (err) {
       console.error("[WorkoutBuilder] Import failed:", err);
       errorMessage.textContent =
