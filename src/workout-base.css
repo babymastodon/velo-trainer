@@ -221,8 +221,30 @@ body {
 .mode-toggle-wrapper {
   position: absolute;
   left: 50%;
+  top: 0;
   transform: translateX(-50%);
-  top: 6px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.mode-toggle-inner {
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+  gap: 6px;
+}
+
+.workout-title-center {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  color: var(--text-main);
 }
 
 .nav-left,
@@ -231,6 +253,10 @@ body {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.nav-right {
+  margin-left: auto;
 }
 
 .device-group {
@@ -453,6 +479,7 @@ body {
   align-items: center;
   gap: 6px;
   color: var(--text-main);
+  flex: 1;
 }
 
 .playback-button {
@@ -461,12 +488,18 @@ body {
   border-radius: var(--radius);
   border: 0px solid var(--border);
   background: var(--surface);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
   color: var(--text-main);
+}
+
+
+.playback-button.visible {
+  display: flex;
+  /* shown when JS adds .visible */
 }
 
 .playback-button svg {
@@ -603,11 +636,22 @@ body {
   z-index: 40;
   opacity: 0;
   transition: opacity 0.20s ease-out;
+  opacity: 0;
+  transition: opacity .3s ease;
+  color: var(--text-numbers);
+  text-shadow: 0 0 20px rgba(244, 244, 244, 1);
+  background: rgba(244, 244, 244, .9);
+}
+
+@media (prefers-color-scheme: dark) {
+  .status-overlay {
+    text-shadow: 0 0 20px rgba(34, 34, 34, 1);
+    background: rgba(34, 34, 34, .8);
+  }
 }
 
 #statusText {
   font-weight: 700;
-  text-shadow: 0 0 16px rgba(0, 0, 0, 0.45);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   text-align: center;
@@ -619,25 +663,6 @@ body {
   }
 }
 
-/* Status overlay visual styling */
-
-#statusOverlay {
-  opacity: 0;
-  transition: opacity .3s ease;
-  background: var(--bg-overlay);
-  color: #444444;
-  text-shadow: 0 0 20px rgba(244, 244, 244, 1);
-  background: rgba(244, 244, 244, .9);
-}
-
-@media (prefers-color-scheme: dark) {
-  #statusOverlay {
-    background: var(--bg-overlay);
-    color: #999999;
-    text-shadow: 0 0 20px rgba(34, 34, 34, 1);
-    background: rgba(34, 34, 34, .8);
-  }
-}
 
 /* Shared FTP-style input (also used in bottom nav manual controls) */
 
@@ -736,4 +761,12 @@ body {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+#startBtn {
+  margin-left: auto;
+}
+
+#workoutNameLabel {
+  white-space: nowrap;
 }

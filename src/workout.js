@@ -54,10 +54,12 @@ const manualControls = document.getElementById("manualControls");
 const manualInputEl = document.getElementById("manualInput");
 const manualUnitEl = document.getElementById("manualUnit");
 
-const workoutControls = document.getElementById("workoutControls");
 const startBtn = document.getElementById("startBtn");
-const ftpWorkoutValueEl = document.getElementById("ftpWorkoutValue");
+const playBtn = document.getElementById("playBtn");
+const pauseBtn = document.getElementById("pauseBtn");
+const stopBtn = document.getElementById("stopBtn");
 const workoutNameLabel = document.getElementById("workoutNameLabel");
+const workoutTitleCenter = document.getElementById("workoutTitleCenter");
 
 // --------------------------- UI-local state ---------------------------
 
@@ -109,6 +111,87 @@ function formatTimeHHMMSS(sec) {
   const mm = String(m).padStart(2, "0");
   const sss = String(ss).padStart(2, "0");
   return `${hh}:${mm}:${sss}`;
+}
+
+function buildWorkoutTooltip(vm) {
+  const meta = vm && vm.workoutMeta;
+  if (!meta) return "";
+
+  const parts = [];
+
+  if (meta.name) {
+    parts.push(meta.name);
+  }
+
+  // Duration (based on workoutTotalSec if available)
+  if (vm.workoutTotalSec) {
+    const mins = Math.round(vm.workoutTotalSec / 60);
+    parts.push(`Duration: ${mins} min`);
+  }
+
+  if (meta.category) {
+    parts.push(`Category: ${meta.category}`);
+  }
+
+  if (meta.source) {
+    parts.push(`Source: ${meta.source}`);
+  }
+
+  if (typeof meta.if === "number") {
+    parts.push(`IF: ${meta.if.toFixed(2)}`);
+  }
+
+  if (typeof meta.tss === "number") {
+    parts.push(`TSS: ${Math.round(meta.tss)}`);
+  }
+
+  if (meta.description) {
+    parts.push("");
+    parts.push(meta.description);
+  }
+
+  return parts.join("\n");
+}
+
+
+function updateWorkoutTitleUI(vm) {
+  // Right-side label text/title (even if hidden while running)
+  if (workoutNameLabel) {
+    if (vm.workoutMeta) {
+      const name = vm.workoutMeta.name || "Selected workout";
+      workoutNameLabel.textContent = name;
+      workoutNameLabel.title = name;
+    } else {
+      workoutNameLabel.textContent = "Click here to select a workout";
+      workoutNameLabel.title = "";
+    }
+  }
+
+  // Center title vs mode toggle & hide right label when running
+  if (workoutTitleCenter && modeToggle) {
+    if (vm.workoutRunning || vm.workoutStarting) {
+      // When workout is started:
+      // - hide mode toggle
+      // - show bold workout name in center with tooltip
+      modeToggle.style.display = "none";
+      workoutTitleCenter.style.display = "block";
+
+      const name = vm.workoutMeta?.name || "Workout running";
+      workoutTitleCenter.textContent = name;
+      workoutTitleCenter.title = buildWorkoutTooltip(vm);
+
+      // Don't show workoutNameLabel on the right while running
+      if (workoutNameLabel) {
+        workoutNameLabel.style.display = "none";
+      }
+    } else {
+      // Not running: show mode toggle, hide center title
+      modeToggle.style.display = "inline-flex";
+      workoutTitleCenter.style.display = "none";
+      workoutTitleCenter.title = "";
+      // Let applyModeUI control workoutNameLabel's display in non-running states
+    }
+  }
 }
 
 // --------------------------- Dynamic stat font sizing ---------------------------
@@ -323,7 +406,7 @@ function updateStatsDisplay(vm) {
 // --------------------------- Chart empty-state helper ---------------------------
 
 /**
- * kind: "none" | "noBike" | "noWorkout"
+ * kind: "none" | "noBike" | "noWorkout" | "readyToStart" | "resume"
  */
 function setChartEmptyState(kind) {
   if (!chartEmptyOverlay || !chartEmptyMessage || !chartEmptyArrow) return;
@@ -335,19 +418,27 @@ function setChartEmptyState(kind) {
 
   chartEmptyOverlay.style.display = "flex";
 
-  // Text
-  chartEmptyMessage.textContent =
-    kind === "noBike" ? "Connect your bike" : "Select a workout";
-
-  // Arrow side
+  chartEmptyArrow.style.display = "";
   chartEmptyArrow.classList.remove(
     "chart-empty-arrow--left",
     "chart-empty-arrow--right"
   );
+
   if (kind === "noBike") {
+    chartEmptyMessage.textContent = "Connect your bike";
     chartEmptyArrow.classList.add("chart-empty-arrow--left");
-  } else {
+
+  } else if (kind === "noWorkout") {
+    chartEmptyMessage.textContent = "Select a workout";
     chartEmptyArrow.classList.add("chart-empty-arrow--right");
+
+  } else if (kind === "readyToStart") {
+    chartEmptyMessage.textContent = "Pedal to begin or press start";
+    chartEmptyArrow.classList.add("chart-empty-arrow--right");
+
+  } else if (kind === "resume") {
+    chartEmptyMessage.textContent = "Pedal to resume";
+    chartEmptyArrow.style.display = "none";   // <-- HIDE ARROW
   }
 }
 
@@ -357,6 +448,22 @@ function drawChart(vm) {
   if (!chartSvg || !chartPanel) return;
 
   const showNoBike = !bikeConnected;
+
+  const showReadyToStart =
+    bikeConnected &&
+    vm &&
+    vm.mode === "workout" &&
+    vm.workoutMeta &&
+    !vm.workoutRunning &&
+    (vm.elapsedSec || 0) === 0;
+
+  const showResume =
+    bikeConnected &&
+    vm &&
+    vm.mode === "workout" &&
+    vm.workoutPaused === true &&
+    vm.workoutRunning;
+
   const showNoWorkout =
     bikeConnected &&
     vm &&
@@ -366,6 +473,10 @@ function drawChart(vm) {
 
   if (showNoBike) {
     setChartEmptyState("noBike");
+  } else if (showResume) {
+    setChartEmptyState("resume");
+  } else if (showReadyToStart) {
+    setChartEmptyState("readyToStart");
   } else if (showNoWorkout) {
     setChartEmptyState("noWorkout");
   } else {
@@ -388,96 +499,34 @@ function drawChart(vm) {
   });
 }
 
-
 // --------------------------- Playback buttons ---------------------------
 
 function updatePlaybackButtons(vm) {
-  const existingPlay = document.getElementById("playBtn");
-  const existingPause = document.getElementById("pauseBtn");
-  const existingStop = document.getElementById("stopBtn");
+  // Hide all buttons first
+  [startBtn, playBtn, pauseBtn, stopBtn].forEach(btn => {
+    if (btn) btn.classList.remove("visible");
+  });
 
-  if (existingPlay) existingPlay.remove();
-  if (existingPause) existingPause.remove();
-  if (existingStop) existingStop.remove();
-
-  if (!startBtn || !workoutControls) return;
-
-  function createPlayButton() {
-    const btn = document.createElement("button");
-    btn.id = "playBtn";
-    btn.className = "playback-button";
-    btn.title = "Start workout (Space)";
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M9 7v10l8-5z" />
-      </svg>`;
-    btn.addEventListener("click", () => {
-      engine && engine.startWorkout();
-    });
-    return btn;
+  // No workout selected → show nothing
+  if (vm.mode === "workout" && !vm.workoutMeta) {
+    return;
   }
 
-  function createPauseButton() {
-    const btn = document.createElement("button");
-    btn.id = "pauseBtn";
-    btn.className = "playback-button";
-    btn.title = "Pause workout";
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M9 7v10M15 7v10" />
-      </svg>`;
-    btn.addEventListener("click", () => {
-      // Pause/resume is handled inside engine.startWorkout toggle;
-      // we just treat pause button as "toggle"
-      engine && engine.startWorkout();
-    });
-    return btn;
-  }
-
-  function createStopButton() {
-    const btn = document.createElement("button");
-    btn.id = "stopBtn";
-    btn.className = "playback-button";
-    btn.title = "End workout";
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="8" y="8" width="8" height="8" />
-      </svg>`;
-    btn.addEventListener("click", async () => {
-      const sure = confirm("End current workout and save it?");
-      if (!sure) return;
-      engine && engine.endWorkout();
-    });
-    return btn;
-  }
-
+  // Not running yet → show START
   if (!vm.workoutRunning) {
-    // No active workout
     if (vm.mode === "workout" && vm.workoutMeta) {
-      startBtn.style.display = "";
-    } else {
-      startBtn.style.display = "none";
+      startBtn.classList.add("visible");
     }
     return;
   }
 
-  startBtn.style.display = "none";
+  // Running → STOP always visible
+  stopBtn.classList.add("visible");
 
-  if (vm.mode === "workout") {
-    if (vm.workoutPaused) {
-      const play = createPlayButton();
-      const stop = createStopButton();
-      workoutControls.prepend(stop);
-      workoutControls.prepend(play);
-    } else {
-      const pause = createPauseButton();
-      const stop = createStopButton();
-      workoutControls.prepend(stop);
-      workoutControls.prepend(pause);
-    }
+  if (vm.workoutPaused) {
+    playBtn.classList.add("visible");   // resume
   } else {
-    const stop = createStopButton();
-    workoutControls.prepend(stop);
+    pauseBtn.classList.add("visible");  // pause
   }
 }
 
@@ -504,7 +553,9 @@ function applyModeUI(vm) {
       manualUnitEl.textContent = "W";
     }
 
-    workoutNameLabel.style.display = "flex";
+    // NEW: hide workout label in ERG mode
+    workoutNameLabel.style.display = "none";
+
   } else if (vm.mode === "resistance") {
     manualControls.style.display = "inline-flex";
 
@@ -516,10 +567,13 @@ function applyModeUI(vm) {
       manualUnitEl.textContent = "%";
     }
 
-    workoutNameLabel.style.display = "flex";
+    // NEW: hide workout label in Resistance mode
+    workoutNameLabel.style.display = "none";
+
   } else {
+    // Workout mode
     manualControls.style.display = "none";
-    workoutNameLabel.style.display = "flex";
+    workoutNameLabel.style.display = "flex"; // visible in workout mode (when not running)
   }
 }
 
@@ -578,28 +632,14 @@ function updateStatusOverlay(_vm) {
 // --------------------------- Render from engine state ---------------------------
 
 function renderFromEngine(vm) {
-  // Workout title & FTP
-  if (workoutNameLabel) {
-    if (vm.workoutMeta) {
-      const name = vm.workoutMeta.name || "Selected workout";
-      workoutNameLabel.textContent = name;
-      workoutNameLabel.title = name;
-    } else {
-      workoutNameLabel.textContent = "Click here to select a workout";
-      workoutNameLabel.title = "";
-    }
-  }
-
-  if (ftpWorkoutValueEl) {
-    ftpWorkoutValueEl.textContent = vm.currentFtp || DEFAULT_FTP;
-  }
-
   applyModeUI(vm);
+  updateWorkoutTitleUI(vm);
   updateStatsDisplay(vm);
   updatePlaybackButtons(vm);
   drawChart(vm);
   updateStatusOverlay(vm);
 }
+
 
 // --------------------------- Theme re-render ---------------------------
 
@@ -748,10 +788,30 @@ async function initPage() {
     });
   }
 
-  // Start button
+  // Playback buttons
   if (startBtn) {
     startBtn.addEventListener("click", () => {
       engine.startWorkout();
+    });
+  }
+
+  if (playBtn) {
+    playBtn.addEventListener("click", () => {
+      engine.startWorkout(); // resume
+    });
+  }
+
+  if (pauseBtn) {
+    pauseBtn.addEventListener("click", () => {
+      engine.startWorkout(); // pause
+    });
+  }
+
+  if (stopBtn) {
+    stopBtn.addEventListener("click", async () => {
+      const sure = confirm("End current workout and save it?");
+      if (!sure) return;
+      engine.endWorkout();
     });
   }
 

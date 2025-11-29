@@ -112,11 +112,18 @@
     </div>
 
     <div class="mode-toggle-wrapper">
-      <!-- Mode toggle -->
-      <div id="modeToggle" class="mode-toggle" title="Control mode">
-        <button class="mode-toggle-button active" data-mode="workout">Workout</button>
-        <button class="mode-toggle-button" data-mode="erg">ERG</button>
-        <button class="mode-toggle-button" data-mode="resistance">Resistance</button>
+      <div class="mode-toggle-inner">
+        <!-- Mode toggle (shown when no workout is running) -->
+        <div id="modeToggle" class="mode-toggle" title="Control mode">
+          <button class="mode-toggle-button active" data-mode="workout">Workout</button>
+          <button class="mode-toggle-button" data-mode="erg">ERG</button>
+          <button class="mode-toggle-button" data-mode="resistance">Resistance</button>
+        </div>
+
+        <!-- Center workout title (shown when workout is running) -->
+        <div id="workoutTitleCenter" class="workout-title-center" style="display:none" title="">
+          <!-- text filled by JS -->
+        </div>
       </div>
     </div>
 
@@ -135,16 +142,40 @@
 
       <!-- Workout controls: FTP + title + playback -->
       <div id="workoutControls" class="workout-controls">
+
+        <div id="workoutNameLabel" class="inline-clicktoggle">
+          Selected workout
+        </div>
+
+        <!-- START button -->
         <button id="startBtn" class="playback-button" title="Start workout (Space)">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M9 7v10l8-5z" />
           </svg>
         </button>
 
-        <div id="workoutNameLabel" class="inline-clicktoggle">
-          Selected workout
-        </div>
+        <!-- PLAY button (for resume) -->
+        <button id="playBtn" class="playback-button" title="Resume workout">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 7v10l8-5z" />
+          </svg>
+        </button>
+
+        <!-- PAUSE button -->
+        <button id="pauseBtn" class="playback-button" title="Pause workout">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 7v10M15 7v10" />
+          </svg>
+        </button>
+
+        <!-- STOP button -->
+        <button id="stopBtn" class="playback-button" title="End workout">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="8" y="8" width="8" height="8" />
+          </svg>
+        </button>
       </div>
+
     </div>
   </nav>
 

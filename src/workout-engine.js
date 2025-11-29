@@ -391,6 +391,11 @@ function createWorkoutEngine() {
       return;
     }
 
+    if (mode !== "workout") {
+      alert("Must be in workout mode to begin workout.");
+      return;
+    }
+
     if (!workoutRunning && !workoutStarting) {
       workoutStarting = true;
       log("Starting workout (countdown)...");
@@ -554,6 +559,7 @@ function createWorkoutEngine() {
     // state change
     setMode(newMode) {
       if (newMode === mode) return;
+      if (workoutStarting) return;
       mode = newMode;
       scheduleSaveActiveState();
       sendTrainerState(true).catch((err) =>
