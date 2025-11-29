@@ -33,8 +33,11 @@ const statCadenceEl = document.getElementById("stat-cadence");
 const chartSvg = document.getElementById("chartSvg");
 const chartPanel = document.getElementById("chartPanel");
 const chartTooltip = document.getElementById("chartTooltip");
-const noBikeOverlay = document.getElementById("noBikeOverlay");
-const noWorkoutOverlay = document.getElementById("noWorkoutOverlay");
+
+// Shared empty-state template refs
+const chartEmptyOverlay = document.getElementById("chartEmptyOverlay");
+const chartEmptyMessage = document.getElementById("chartEmptyMessage");
+const chartEmptyArrow = document.getElementById("chartEmptyArrow");
 
 const bikeConnectBtn = document.getElementById("bikeConnectBtn");
 const bikeStatusDot = document.getElementById("bikeStatusDot");
@@ -102,9 +105,9 @@ function formatTimeHHMMSS(sec) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const ss = s % 60;
-  const hh = String(h).padStart(2, "00");
-  const mm = String(m).padStart(2, "00");
-  const sss = String(ss).padStart(2, "00");
+  const hh = String(h).padStart(2, "0");
+  const mm = String(m).padStart(2, "0");
+  const sss = String(ss).padStart(2, "0");
   return `${hh}:${mm}:${sss}`;
 }
 
@@ -317,12 +320,42 @@ function updateStatsDisplay(vm) {
     .forEach((el) => (el.style.color = color));
 }
 
+// --------------------------- Chart empty-state helper ---------------------------
+
+/**
+ * kind: "none" | "noBike" | "noWorkout"
+ */
+function setChartEmptyState(kind) {
+  if (!chartEmptyOverlay || !chartEmptyMessage || !chartEmptyArrow) return;
+
+  if (kind === "none") {
+    chartEmptyOverlay.style.display = "none";
+    return;
+  }
+
+  chartEmptyOverlay.style.display = "flex";
+
+  // Text
+  chartEmptyMessage.textContent =
+    kind === "noBike" ? "Connect your bike" : "Select a workout";
+
+  // Arrow side
+  chartEmptyArrow.classList.remove(
+    "chart-empty-arrow--left",
+    "chart-empty-arrow--right"
+  );
+  if (kind === "noBike") {
+    chartEmptyArrow.classList.add("chart-empty-arrow--left");
+  } else {
+    chartEmptyArrow.classList.add("chart-empty-arrow--right");
+  }
+}
+
 // --------------------------- Chart rendering ---------------------------
 
 function drawChart(vm) {
   if (!chartSvg || !chartPanel) return;
 
-  // Decide which empty state (if any) to show.
   const showNoBike = !bikeConnected;
   const showNoWorkout =
     bikeConnected &&
@@ -331,11 +364,12 @@ function drawChart(vm) {
     !vm.workoutMeta &&
     !vm.workoutRunning;
 
-  if (noBikeOverlay) {
-    noBikeOverlay.style.display = showNoBike ? "flex" : "none";
-  }
-  if (noWorkoutOverlay) {
-    noWorkoutOverlay.style.display = showNoWorkout ? "flex" : "none";
+  if (showNoBike) {
+    setChartEmptyState("noBike");
+  } else if (showNoWorkout) {
+    setChartEmptyState("noWorkout");
+  } else {
+    setChartEmptyState("none");
   }
 
   if (showNoBike || showNoWorkout) {
