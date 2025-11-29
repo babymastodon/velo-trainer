@@ -108,7 +108,6 @@ function isWebBluetoothAvailable() {
 function openSettings() {
   if (!settingsOverlay || !settingsModal) return;
   settingsOverlay.style.display = "flex";
-  settingsModal.focus?.();
 }
 
 function actuallyCloseSettings() {
@@ -122,7 +121,6 @@ function canDismissSettings() {
   if (!hasBlockingSettingsIssues) return true;
 
   alert("Please fix the highlighted settings before closing the Settings window.");
-  settingsModal?.focus?.();
   return false;
 }
 
