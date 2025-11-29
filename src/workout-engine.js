@@ -516,7 +516,7 @@ function createWorkoutEngine() {
     }
 
     const active = await loadActiveState();
-    if (active && active.workoutMeta && active.liveSamples) {
+    if (active) {
       log("Restoring previous active workout state.");
       workoutMeta = active.workoutMeta;
       currentFtp = active.currentFtp || currentFtp;
