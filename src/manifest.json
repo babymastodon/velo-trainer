@@ -3,7 +3,7 @@
   "name": "VeloDrive",
   "version": "0.3.0",
   "description": "VeloDrive imports ZWO workouts from sites like WhatsOnZwift or TrainerDay and runs them in the browser with smart-trainer ERG/FTMS support.",
-  
+
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -45,21 +45,28 @@
     }
   ],
 
-  "options_page": "workout.html",
+  "options_ui": {
+    "page": "workout.html",
+    "open_in_tab": true
+  },
 
   "web_accessible_resources": [
     {
       "resources": [
         "workout.html",
         "workout.js",
+        "workout-builder.js",
         "ble-manager.js",
         "beeper.js",
         "storage.js",
+        "settings.js",
         "workout-metrics.js",
         "workout-chart.js",
         "workout-engine.js",
-        "settings.js",
-        "workout-picker.js"
+        "workout-picker.js",
+        "settings.css",
+        "workout-base.css",
+        "workout-picker.css"
       ],
       "matches": ["chrome-extension://*/*"]
     }
