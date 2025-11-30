@@ -335,6 +335,11 @@ export function createWorkoutBuilder(options) {
     });
   });
 
+  // Persist URL field changes too (without reparsing code)
+  urlInput.addEventListener("input", () => {
+    handleAnyChange({skipParse: true});
+  });
+
   // URL import
   let isUrlImportInProgress = false;
 
@@ -373,6 +378,9 @@ export function createWorkoutBuilder(options) {
         } else {
           sourceField.input.value = "Imported workout";
         }
+
+        // Persist source URL: prefer canonical.sourceURL, fall back to entered URL
+        urlInput.value = (canonical.sourceURL || url || "").trim();
       }
 
       codeTextarea.value = segmentsToZwoSnippet(canonical.rawSegments);
@@ -415,6 +423,8 @@ export function createWorkoutBuilder(options) {
           sourceField.input.value = saved.source || "";
           descField.textarea.value = saved.description || "";
           codeTextarea.value = segmentsToZwoSnippet(saved.rawSegments);
+          // hydrate URL field from saved CanonicalWorkout
+          urlInput.value = saved.sourceURL || "";
         }
       }
     } catch (e) {
@@ -441,11 +451,12 @@ export function createWorkoutBuilder(options) {
       (sourceField.input.value || "VeloDrive Builder").trim() ||
       "VeloDrive Builder";
     const description = descField.textarea.value || "";
+    const sourceURL = (urlInput.value || "").trim();
 
     /** @type {import("./zwo.js").CanonicalWorkout} */
     const canonical = {
       source,
-      sourceURL: "",
+      sourceURL,
       workoutTitle: title,
       rawSegments: currentRawSegments.slice(),
       description,
@@ -459,6 +470,7 @@ export function createWorkoutBuilder(options) {
     sourceField.input.value = "";
     descField.textarea.value = "";
     codeTextarea.value = "";
+    urlInput.value = "";
 
     setDefaultSnippet();
     refreshLayout();
@@ -482,6 +494,7 @@ export function createWorkoutBuilder(options) {
     sourceField.input.value = canonical.source || "";
     descField.textarea.value = canonical.description || "";
     codeTextarea.value = segmentsToZwoSnippet(canonical.rawSegments);
+    urlInput.value = canonical.sourceURL || "";
 
     handleAnyChange();
   }
