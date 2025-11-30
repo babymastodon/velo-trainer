@@ -75,6 +75,9 @@ const logLines = [];
 let chartWidth = 1000;
 let chartHeight = 400;
 
+// Ensure we only ever run handleLastScrapedWorkout once at a time
+let isHandlingLastScrapedWorkout = false;
+
 // engine & picker are created in initPage
 let engine = null;
 let picker = null;
@@ -635,6 +638,13 @@ function rerenderThemeSensitive() {
 // --------------------------- Load scraped workout ---------------------------
 
 async function handleLastScrapedWorkout() {
+  // Concurrency guard: bail if a run is already in progress
+  if (isHandlingLastScrapedWorkout) {
+    return;
+  }
+
+  isHandlingLastScrapedWorkout = true;
+
   try {
     const [justScraped, last] = await Promise.all([
       wasWorkoutJustScraped(),
@@ -702,7 +712,7 @@ async function handleLastScrapedWorkout() {
         engine.setWorkoutFromPicker(last);
 
         try {
-          await saveCanonicalWorkoutToZwoDir(last);
+          await picker.saveCanonicalWorkoutToZwoDir(last);
         } catch (err) {
           console.error("[Workout] Failed to save scraped workout to ZWO dir:", err);
         }
@@ -733,6 +743,8 @@ async function handleLastScrapedWorkout() {
     } catch (err) {
       console.error("[Workout] Failed to clear just-scraped flag:", err);
     }
+    // Always release the lock
+    isHandlingLastScrapedWorkout = false;
   }
 }
 

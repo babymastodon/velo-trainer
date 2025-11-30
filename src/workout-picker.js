@@ -963,7 +963,6 @@ function createWorkoutPicker(config) {
    * @returns {Promise<{ ok: boolean, fileName?: string, dirHandle?: FileSystemDirectoryHandle }>}
    */
   async function saveCanonicalWorkoutToZwoDir(canonical) {
-    console.log("saving", canonical);
     let dirHandle = await loadZwoDirHandle();
     if (!dirHandle) {
       alert(
