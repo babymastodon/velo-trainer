@@ -341,7 +341,7 @@ function createWorkoutPicker(config) {
     zoneFilter.innerHTML = "";
     const optAll = document.createElement("option");
     optAll.value = "";
-    optAll.textContent = "All categories";
+    optAll.textContent = "All zones";
     zoneFilter.appendChild(optAll);
 
     for (const c of cats) {
