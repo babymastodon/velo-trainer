@@ -23,6 +23,8 @@
  *   - endPower: % FTP or equivalent "end power" (0–100 usually)
  * @property {string} description
  *   Human-readable description/notes
+ * @property {string} filename
+ *   Suggested filename (e.g. original ZWO filename), may be ""
  */
 
 // ---------------- Site detection regexes (for parsers) ----------------
@@ -59,11 +61,31 @@ function escapeXml(text) {
   });
 }
 
+function unescapeXml(text) {
+  if (!text) return "";
+  return String(text)
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 function cdataWrap(text) {
   if (!text) return "<![CDATA[]]>";
   // Prevent accidental CDATA close inside content
   const safe = String(text).replace("]]>", "]]&gt;");
   return "<![CDATA[" + safe + "]]>";
+}
+
+function cdataUnwrap(text) {
+  if (!text) return "";
+  const str = String(text).trim();
+  if (str.startsWith("<![CDATA[") && str.endsWith("]]>")) {
+    const inner = str.slice(9, -3);
+    return inner.replace("]]&gt;", "]]>");
+  }
+  return str;
 }
 
 /**
@@ -625,6 +647,8 @@ function blocksSimilarSteady(a, b, durTolSec, pwrTol) {
  *   - Appended to the description inside CDATA
  *   - As a tag: <tag name="OriginalURL:..."/>
  *
+ * The source is *not* encoded in tags; it is just the <author>.
+ *
  * @param {CanonicalWorkout} meta
  * @param {Object} [options]
  * @param {string} [options.category]   - Optional Zwift category (default: meta.source or "Imported")
@@ -638,6 +662,7 @@ export function canonicalWorkoutToZwoXml(meta, options = {}) {
     workoutTitle = "",
     rawSegments = [],
     description = "",
+    filename = "",
   } = meta || {};
 
   const category = options.category || source || "Imported";
@@ -658,7 +683,7 @@ export function canonicalWorkoutToZwoXml(meta, options = {}) {
       : urlLine;
   }
 
-  // Also include URL as a tag (Zwift will just ignore unknown tags,
+  // Include URL as a tag (Zwift will just ignore unknown tags,
   // but tools can use it later).
   const urlTag = sourceURL
     ? `    <tag name="OriginalURL:${escapeXml(sourceURL)}"/>\n`
@@ -671,6 +696,10 @@ export function canonicalWorkoutToZwoXml(meta, options = {}) {
       .join("\n")
     : "";
 
+  const fileNameTag = filename
+    ? `  <!-- filename: ${escapeXml(filename)} -->\n`
+    : "";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <workout_file>
   <author>${escapeXml(author)}</author>
@@ -679,13 +708,95 @@ export function canonicalWorkoutToZwoXml(meta, options = {}) {
   <category>${escapeXml(category)}</category>
   <sportType>${escapeXml(sportType)}</sportType>
   <tags>
-    <tag name="${escapeXml(source || "External")}"/>
 ${urlTag}  </tags>
   <workout>
 ${indentedBody}
   </workout>
-</workout_file>
+${fileNameTag}</workout_file>
 `;
+}
+
+/**
+ * Simple inverse of canonicalWorkoutToZwoXml:
+ * Parse a full ZWO XML file into a CanonicalWorkout.
+ *
+ * This uses basic string-based parsing (not a full XML parser) and
+ * focuses on the common fields produced by canonicalWorkoutToZwoXml.
+ *
+ * @param {string} xmlText
+ * @param {string} [filename]
+ * @returns {CanonicalWorkout|null}
+ */
+export function parseZwoXmlToCanonicalWorkout(xmlText, filename = "") {
+  if (!xmlText || typeof xmlText !== "string") return null;
+  const xml = xmlText;
+
+  const nameMatch = xml.match(/<name>([\s\S]*?)<\/name>/i);
+  const rawName = nameMatch ? nameMatch[1].trim() : "Imported workout";
+  const workoutTitle = unescapeXml(cdataUnwrap(rawName));
+
+  const descMatch = xml.match(/<description>([\s\S]*?)<\/description>/i);
+  let description = "";
+  if (descMatch) {
+    let rawDesc = descMatch[1].trim();
+    rawDesc = cdataUnwrap(rawDesc);
+    rawDesc = unescapeXml(rawDesc);
+
+    // Strip the "Original workout URL: ..." line if present
+    const lines = rawDesc.split(/\r?\n/);
+    const filtered = [];
+    for (const line of lines) {
+      if (
+        line.trim().toLowerCase().startsWith("original workout url:")
+      ) {
+        continue;
+      }
+      filtered.push(line);
+    }
+    description = filtered.join("\n").trim();
+  }
+
+  // Extract OriginalURL tag if present
+  let sourceURL = "";
+  const urlTagMatch = xml.match(
+    /<tag[^>]*\sname="OriginalURL:([^"]*)"/i
+  );
+  if (urlTagMatch) {
+    sourceURL = unescapeXml(urlTagMatch[1]);
+  }
+
+  // Source is just the author
+  let source = "Imported ZWO";
+  const authorMatch = xml.match(/<author>([\s\S]*?)<\/author>/i);
+  if (authorMatch) {
+    source = unescapeXml(authorMatch[1].trim());
+  }
+
+  // Extract <workout>...</workout> body and reuse parseZwoSnippet
+  const workoutMatch = xml.match(
+    /<workout[^>]*>([\s\S]*?)<\/workout>/i
+  );
+  const workoutInner = workoutMatch ? workoutMatch[1] : "";
+  const {segments} = parseZwoSnippet(workoutInner);
+
+  const rawSegments = segments.map((s) => {
+    const minutes = s.durationSec / 60;
+    const startPct = s.pStartRel * 100;
+    const endPct = s.pEndRel * 100;
+    return [minutes, startPct, endPct];
+  });
+
+  /** @type {CanonicalWorkout} */
+  const cw = {
+    source,
+    sourceURL,
+    workoutTitle,
+    rawSegments,
+    description,
+    filename: filename || "",
+  };
+
+  return cw;
 }
 
 // ---------------- Parsers for each site -> CanonicalWorkout -----------
@@ -826,6 +937,7 @@ export async function parseTrainerRoadPage() {
       workoutTitle,
       rawSegments,
       description,
+      filename: "",
     };
 
     return [cw, null];
@@ -913,6 +1025,7 @@ export async function parseTrainerDayPage() {
       workoutTitle,
       rawSegments,
       description,
+      filename: "",
     };
 
     return [cw, null];
@@ -1142,6 +1255,7 @@ export async function parseWhatsOnZwiftPage() {
       workoutTitle,
       rawSegments,
       description,
+      filename: "",
     };
 
     return [cw, null];
@@ -1241,6 +1355,7 @@ async function importTrainerDayFromUrl(url) {
       workoutTitle: details.title || "TrainerDay Workout",
       rawSegments,
       description: details.description || "",
+      filename: "",
     };
 
     const zwoSnippet = segmentsToZwoSnippet(rawSegments);
@@ -1339,6 +1454,7 @@ async function importWhatsOnZwiftFromUrl(url) {
       workoutTitle,
       rawSegments,
       description: description || "",
+      filename: "",
     };
 
     const zwoSnippet = segmentsToZwoSnippet(rawSegments);
