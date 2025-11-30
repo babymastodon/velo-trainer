@@ -653,97 +653,92 @@ async function handleLastScrapedWorkout() {
 
     if (!justScraped || !last) return;
 
-    const name = last.workoutTitle || "(unnamed workout)";
     const success = !!last.success;
-    const source = last.source || "";
-    const url = last.sourceURL || "";
     const error = last.error || "";
+    const title = last.workoutTitle || "(unnamed workout)";
 
-    const baseLines = [];
-    baseLines.push(`New workout detected 🎉`);
-    baseLines.push(`Title: ${name}`);
-    if (source) baseLines.push(`Source: ${source}`);
-    if (url) baseLines.push(`URL: ${url}`);
-
-    if (!success || !engine) {
-      baseLines.push("");
-      baseLines.push("Unfortunately we couldn’t load this workout automatically.");
-      if (!success && error) {
-        baseLines.push("");
-        baseLines.push(`Details: ${error}`);
-      }
-      alert(baseLines.join("\n"));
+    // -------------------------
+    // ❌ Scrape failed → ALERT
+    // -------------------------
+    if (!success) {
+      const msg = [
+        `Failed to import workout "${title}".`,
+        error ? `\nDetails: ${error}` : ""
+      ].join("\n");
+      alert(msg);
       return;
     }
 
-    const vm = engine.getViewModel();
-    const hasActiveWorkout =
-      vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+    // --------------------------------------
+    // 1. Save workout to ZWO library (import)
+    // --------------------------------------
+    try {
+      await picker.saveCanonicalWorkoutToZwoDir(last);
+    } catch (err) {
+      console.error("[Workout] Failed to save scraped workout:", err);
+      alert(
+        `Failed to save imported workout "${title}" to your workout folder.\n\n` +
+        "Check console for details."
+      );
+      return; // error path should not continue
+    }
 
-    if (!hasActiveWorkout) {
-      if (vm.mode !== "workout") {
-        engine.setMode("workout");
+    // -----------------------------------------
+    // 2. Open the picker focused on this workout
+    // -----------------------------------------
+    try {
+      if (picker && typeof picker.open === "function") {
+        picker.open(title);
       }
-      engine.setWorkoutFromPicker(last);
+    } catch (err) {
+      console.error("[Workout] Failed to open picker:", err);
+      alert(
+        `Workout "${title}" was imported, but could not be displayed in the picker.\n\n` +
+        "Check console for details."
+      );
+      // continue, it’s still imported
+    }
 
+    // ------------------------------------------------------
+    // 3. If no active workout, load the new one automatically
+    // ------------------------------------------------------
+    if (engine) {
       try {
-        await picker.saveCanonicalWorkoutToZwoDir(last);
+        const vm = engine.getViewModel();
+        const hasActive =
+          vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+
+        if (!hasActive) {
+          if (vm.mode !== "workout") {
+            engine.setMode("workout");
+          }
+          engine.setWorkoutFromPicker(last);
+        }
       } catch (err) {
-        console.error("[Workout] Failed to save scraped workout to ZWO dir:", err);
-      }
-
-      baseLines.push("");
-      baseLines.push(
-        "This workout has been loaded as your current selection and saved to your workout folder. You can start it whenever you’re ready."
-      );
-      alert(baseLines.join("\n"));
-    } else {
-      const replace = confirm(
-        "A workout is currently in progress.\n\nDo you want to end it now (it will be saved) and switch to the newly imported workout?"
-      );
-
-      if (replace) {
-        await engine.endWorkout();
-
-        const vmAfter = engine.getViewModel();
-        if (vmAfter.mode !== "workout") {
-          engine.setMode("workout");
-        }
-        engine.setWorkoutFromPicker(last);
-
-        try {
-          await picker.saveCanonicalWorkoutToZwoDir(last);
-        } catch (err) {
-          console.error("[Workout] Failed to save scraped workout to ZWO dir:", err);
-        }
-
-        baseLines.push("");
-        baseLines.push("Your previous workout was ended and saved.");
-        baseLines.push(
-          "The newly imported workout has been loaded and saved to your workout folder. You can start it when you’re ready."
+        console.error("[Workout] Failed to load workout into engine:", err);
+        alert(
+          `Workout "${title}" was imported, but could not be loaded as the current workout.\n\n` +
+          "Check console for details."
         );
-        alert(baseLines.join("\n"));
-      } else {
-        baseLines.push("");
-        baseLines.push(
-          "No changes made. Your current workout remains active, and the imported workout was not loaded."
-        );
-        alert(baseLines.join("\n"));
       }
     }
+    // ✔️ On success: NO alerts, no prompts, nothing visible except picker
   } catch (err) {
-    console.error("[Workout] Failed to handle last scraped workout:", err);
+    console.error("[Workout] Unexpected failure:", err);
     alert(
-      "We found a newly imported workout, but something went wrong while trying to load it.\n\n" +
-      "If you’re debugging this app, check the console for more details."
+      "A newly imported workout was detected, but an unexpected error occurred.\n\n" +
+      "Check console for details."
     );
   } finally {
     try {
       await clearJustScrapedFlag();
     } catch (err) {
       console.error("[Workout] Failed to clear just-scraped flag:", err);
+      alert(
+        "Imported workout handled, but failed to reset scrape state.\n\n" +
+        "Check console for details."
+      );
     }
-    // Always release the lock
     isHandlingLastScrapedWorkout = false;
   }
 }
@@ -765,7 +760,6 @@ async function initPage() {
   updateHrBatteryLabel();
 
   await initSettings();
-  await handleLastScrapedWorkout();
 
   if (window.matchMedia) {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
@@ -931,6 +925,7 @@ async function initPage() {
     });
   });
 
+  await handleLastScrapedWorkout();
   logDebug("Workout page ready.");
 }
 

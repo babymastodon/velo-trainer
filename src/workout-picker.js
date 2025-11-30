@@ -738,7 +738,9 @@ function createWorkoutPicker(config) {
 
   // --------------------------- rescan & selection ---------------------------
 
-  async function rescanWorkouts(handle) {
+  async function rescanWorkouts(handle, options = {}) {
+    const {skipRestoreState = false} = options;
+
     if (!handle) {
       pickerWorkouts = [];
       renderWorkoutPickerTable();
@@ -756,7 +758,10 @@ function createWorkoutPicker(config) {
     pickerWorkouts = await scanWorkoutsFromDirectory(handle);
     refreshZoneFilterOptions();
 
-    await restorePickerStateIntoControls();
+    if (!skipRestoreState) {
+      await restorePickerStateIntoControls();
+    }
+
     renderWorkoutPickerTable();
   }
 
@@ -917,17 +922,7 @@ function createWorkoutPicker(config) {
 
       // Success → clean up + refresh UI
       workoutBuilder.clearState();
-      exitBuilderMode();
-
-      const dirHandle =
-        result.dirHandle || (await loadZwoDirHandle());
-      if (dirHandle) {
-        await rescanWorkouts(dirHandle);
-      }
-
-      resetPickerFilters();
-      pickerExpandedTitle = canonical.workoutTitle;
-      renderWorkoutPickerTable();
+      open(canonical.workoutTitle);
     } catch (err) {
       console.error(
         "[WorkoutPicker] Save to ZWO dir failed:",
@@ -1028,21 +1023,47 @@ function createWorkoutPicker(config) {
 
   // --------------------------- public API ---------------------------
 
-  async function open() {
+  // --------------------------- public API ---------------------------
+
+  /**
+   * Open the workout picker.
+   *
+   * @param {string} [workoutTitle]  Optional workout title to focus/expand.
+   *                                 When provided, picker filters are cleared
+   *                                 and the matching workout row is expanded.
+   */
+  async function open(workoutTitle) {
     exitBuilderMode();
 
     const handle = await loadZwoDirHandle();
+    const hasTargetTitle =
+      typeof workoutTitle === "string" && workoutTitle.trim().length > 0;
+
     if (!handle) {
       if (summaryEl) {
         summaryEl.textContent = "No ZWO folder selected.";
       }
     } else {
-      await rescanWorkouts(handle);
+      if (hasTargetTitle) {
+        // Skip restoring previously persisted filters when we are
+        // trying to focus a specific workout.
+        await rescanWorkouts(handle, {skipRestoreState: true});
+        resetPickerFilters();
+        pickerExpandedTitle = workoutTitle;
+        renderWorkoutPickerTable();
+      } else {
+        await rescanWorkouts(handle);
+      }
     }
 
     isPickerOpen = true;
     if (overlay) overlay.style.display = "flex";
-    if (searchInput && !isBuilderMode) searchInput.focus();
+
+    // Only auto-focus the search box when we're *not* targeting a
+    // specific workout title; in that case the expansion is the focus.
+    if (searchInput && !isBuilderMode && !hasTargetTitle) {
+      searchInput.focus();
+    }
   }
 
   function close() {
