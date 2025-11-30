@@ -91,6 +91,8 @@ function createWorkoutPicker(config) {
 
   const addWorkoutBtn = modal.querySelector("#pickerAddWorkoutBtn");
   const builderBackBtn = modal.querySelector("#workoutBuilderBackBtn");
+  const builderClearBtn = modal.querySelector("#workoutBuilderClearBtn");
+  const builderSaveBtn = modal.querySelector("#workoutBuilderSaveBtn");
   const builderRoot = modal.querySelector("#workoutBuilderRoot");
   const emptyStateEl = modal.querySelector("#pickerEmptyState");
   const emptyAddBtn = modal.querySelector("#pickerEmptyAddBtn");
@@ -361,6 +363,8 @@ function createWorkoutPicker(config) {
 
     // Header buttons
     if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
+    if (builderClearBtn) builderClearBtn.style.display = "inline-flex";
+    if (builderSaveBtn) builderSaveBtn.style.display = "inline-flex";
     if (builderBackBtn) builderBackBtn.style.display = "inline-flex";
 
     // Hide table/summary/footers via class + CSS
@@ -385,10 +389,31 @@ function createWorkoutPicker(config) {
     if (durationFilter) durationFilter.style.display = "";
 
     if (addWorkoutBtn) addWorkoutBtn.style.display = "inline-flex";
+    if (builderClearBtn) builderClearBtn.style.display = "none";
+    if (builderSaveBtn) builderSaveBtn.style.display = "none";
     if (builderBackBtn) builderBackBtn.style.display = "none";
 
     modal.classList.remove("workout-picker-modal--builder");
   }
+
+  function clearBuilder() {
+    const state = workoutBuilder.getState();
+    const hasContent =
+      (state.name && state.name.trim()) ||
+      (state.source && state.source.trim()) ||
+      (state.description && state.description.trim()) ||
+      (state.rawSnippet && state.rawSnippet.trim());
+
+    if (!hasContent) return;
+
+    const ok = window.confirm(
+      "Clear the builder?\n\nThis will remove all text and metadata."
+    );
+    if (!ok) return;
+
+    workoutBuilder.clearState();
+  }
+
 
   function movePickerExpansion(delta) {
     const shown = computeVisiblePickerWorkouts();
@@ -524,6 +549,134 @@ function createWorkoutPicker(config) {
     close();
   }
 
+  // --------------------------- save to library ---------------------------
+  function sanitizeZwoFileName(name) {
+    const base = (name || "Custom workout").trim() || "Custom workout";
+    return base
+      .replace(/[\\\/:*?"<>|]/g, "_") // illegal in file names
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80); // keep it reasonable
+  }
+
+  function escapeXml(text) {
+    return (text || "").replace(/[<>&'"]/g, (ch) => {
+      switch (ch) {
+        case "<": return "&lt;";
+        case ">": return "&gt;";
+        case "&": return "&amp;";
+        case '"': return "&quot;";
+        case "'": return "&apos;";
+        default: return ch;
+      }
+    });
+  }
+
+  function cdataWrap(text) {
+    if (!text) return "<![CDATA[]]>";
+    return "<![CDATA[" + String(text).replace("]]>", "]]&gt;") + "]]>";
+  }
+
+  function buildZwoXmlFromBuilderState(state) {
+    const name =
+      (state.name || "Custom workout").trim() || "Custom workout";
+    const source =
+      (state.source || "VeloDrive Builder").trim() || "VeloDrive Builder";
+    const category = state.category || "Uncategorized";
+    const description = state.description || "";
+
+    const rawBody = (state.rawSnippet || "").trim();
+    const indentedBody = rawBody
+      ? rawBody
+        .split("\n")
+        .map((line) => "    " + line)
+        .join("\n")
+      : "";
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>${escapeXml(source)}</author>
+  <name>${escapeXml(name)}</name>
+  <description>${cdataWrap(description)}</description>
+  <category>${escapeXml(category)}</category>
+  <sportType>bike</sportType>
+  <tags>
+    <tag name="${escapeXml(source)}"/>
+    <tag name="${escapeXml(category)}"/>
+  </tags>
+  <workout>
+${indentedBody}
+  </workout>
+</workout_file>
+`;
+  }
+
+
+  async function saveCurrentBuilderWorkoutToZwoDir() {
+    try {
+      const state = workoutBuilder.getState();
+      if (!state || !state.rawSnippet.trim()) {
+        alert("Cannot save an empty workout.");
+        return;
+      }
+
+      // error warning
+      if (state.errors?.length) {
+        const ok = window.confirm(
+          "This workout contains syntax errors.\n\nSave anyway?"
+        );
+        if (!ok) return;
+      }
+
+      let dirHandle = await loadZwoDirHandle();
+      if (!dirHandle) {
+        alert("No workout library folder configured.");
+        return;
+      }
+
+      const permitted = await ensureDirPermission(dirHandle);
+      if (!permitted) {
+        alert("VeloDrive does not have permission to write to this folder.");
+        return;
+      }
+
+      const safeName = sanitizeZwoFileName(state.name);
+      const fileName = safeName + ".zwo";
+
+      let exists = false;
+      try {
+        await dirHandle.getFileHandle(fileName, {create: false});
+        exists = true;
+      } catch {}
+
+      const ok = window.confirm(
+        exists
+          ? `Overwrite existing workout "${fileName}"?`
+          : `Save workout as "${fileName}"?`
+      );
+      if (!ok) return;
+
+      const fileHandle = await dirHandle.getFileHandle(fileName, {create: true});
+      const writable = await fileHandle.createWritable();
+      const xml = buildZwoXmlFromBuilderState(state);
+
+      await writable.write(xml);
+      await writable.close();
+
+      // SUCCESS: no alert
+      workoutBuilder.clearState();
+      exitBuilderMode();
+
+      // refresh + focus
+      await rescanWorkouts(dirHandle);
+      pickerExpandedKey = fileName;
+      renderWorkoutPickerTable();
+    } catch (err) {
+      console.error("Save failed:", err);
+      alert("Saving workout failed. See logs for details.");
+    }
+  }
+
   // --------------------------- public API ---------------------------
 
   async function open() {
@@ -569,11 +722,22 @@ function createWorkoutPicker(config) {
       enterBuilderMode();
     });
   }
-
   if (builderBackBtn) {
     builderBackBtn.addEventListener("click", (e) => {
       e.preventDefault();
       exitBuilderMode();
+    });
+  }
+  if (builderSaveBtn) {
+    builderSaveBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await saveCurrentBuilderWorkoutToZwoDir();
+    });
+  }
+  if (builderClearBtn) {
+    builderClearBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      clearBuilder();
     });
   }
 

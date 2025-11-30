@@ -139,14 +139,51 @@ export function createWorkoutBuilder(options) {
   const urlInput = document.createElement("input");
   urlInput.type = "url";
   urlInput.placeholder =
-    "Paste a TrainerDay / TrainerRoad / WhatsOnZwift workout URL";
+    "Paste a TrainerDay / WhatsOnZwift workout URL";
   urlInput.className = "wb-url-input";
 
   const urlBtn = document.createElement("button");
   urlBtn.type = "button";
   urlBtn.className = "picker-add-btn";
-  urlBtn.textContent = "Import";
 
+  // SVG icon (currentColor stroke)
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("width", "16");
+  icon.setAttribute("height", "16");
+  icon.classList.add("wb-code-icon");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("stroke", "currentColor");
+  icon.setAttribute("stroke-width", "2");
+  icon.setAttribute("stroke-linecap", "round");
+  icon.setAttribute("stroke-linejoin", "round");
+
+  // Feather-style "download/import" arrow
+  const path1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path1.setAttribute("d", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4");
+
+  const path2 = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  path2.setAttribute("points", "7 10 12 15 17 10");
+
+  const path3 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  path3.setAttribute("x1", "12");
+  path3.setAttribute("y1", "3");
+  path3.setAttribute("x2", "12");
+  path3.setAttribute("y2", "15");
+
+  icon.appendChild(path1);
+  icon.appendChild(path2);
+  icon.appendChild(path3);
+
+  // Add text inside a <span>
+  const textSpan = document.createElement("span");
+  textSpan.textContent = "Import";
+
+  // Put icon + text inside button
+  urlBtn.appendChild(icon);
+  urlBtn.appendChild(textSpan);
+
+  // Assemble UI
   urlRow.appendChild(urlInput);
   urlRow.appendChild(urlBtn);
   urlSection.appendChild(urlTitle);
@@ -296,10 +333,13 @@ export function createWorkoutBuilder(options) {
   });
 
   // URL import
-  urlBtn.addEventListener("click", async () => {
-    const url = (urlInput.value || "").trim();
-    if (!url) return;
+  let isUrlImportInProgress = false;
 
+  async function runUrlImport() {
+    const url = (urlInput.value || "").trim();
+    if (!url || isUrlImportInProgress) return;
+
+    isUrlImportInProgress = true;
     errorMessage.textContent = "Importing workout…";
     errorMessage.className =
       "wb-code-error-message wb-code-error-message--neutral";
@@ -326,8 +366,25 @@ export function createWorkoutBuilder(options) {
         "Import failed. See console for details.";
       errorMessage.className =
         "wb-code-error-message wb-code-error-message--error";
+    } finally {
+      isUrlImportInProgress = false;
+    }
+  }
+
+  // Button click -> import
+  urlBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    runUrlImport();
+  });
+
+  // Press Enter in URL input -> import
+  urlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runUrlImport();
     }
   });
+
 
   // ---------- Init: restore from storage or default ----------
 
@@ -372,6 +429,19 @@ export function createWorkoutBuilder(options) {
       errors: currentErrors.slice(),
       rawSnippet: codeTextarea.value || "",
     };
+  }
+
+  function clearState() {
+    // Clear UI fields
+    nameField.input.value = "";
+    sourceField.input.value = "";
+    descField.textarea.value = "";
+    codeTextarea.value = "";
+
+    // Recompute everything & persist empty state
+    setDefaultSnippet();
+    handleAnyChange();
+    refreshLayout();
   }
 
   function setDefaultSnippet() {
@@ -1345,6 +1415,7 @@ export function createWorkoutBuilder(options) {
   // Expose minimal API if needed later (currently we only use side effects)
   return {
     getState,
+    clearState,
     refreshLayout,
   };
 }

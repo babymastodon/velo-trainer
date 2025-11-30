@@ -212,12 +212,38 @@
           </button>
           <button id="workoutBuilderBackBtn" class="wb-code-insert-btn picker-back-btn" type="button"
             style="display:none;">
-            <svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;display:block;stroke-width:1.6;">
+            <svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;display:block;stroke-width:1.6;"
+              class="wb-code-icon">
               <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round"
                 stroke-linejoin="round" />
             </svg>
             <span>Back To Library</span>
           </button>
+          <button id="workoutBuilderClearBtn" class="wb-code-insert-btn" type="button" title="Clear the builder"
+            style="display:none;">
+            <svg viewBox="0 0 24 24" width="16" height="16" class="wb-code-icon" aria-hidden="true">
+              <path d="M9 4h6m-7 4v10a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V8M5 8h14" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+
+            <span>Clear</span>
+          </button>
+
+          <button id="workoutBuilderSaveBtn" class="picker-add-btn picker-save-btn" type="button" style="display:none;"
+            title="Save workout to library">
+
+            <svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;display:block;"
+              class="wb-code-icon">
+              <!-- Modern floppy disk style using only currentColor -->
+              <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"
+                d="M4 3h13l3 3v15H4z" />
+              <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M8 3v6h8V3" />
+              <rect x="7" y="15" width="10" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" />
+            </svg>
+
+            <span>Save</span>
+          </button>
+
           <button id="workoutPickerCloseBtn" class="picker-close-btn" title="Close">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" />
