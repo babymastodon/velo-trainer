@@ -15,7 +15,7 @@
 import {
   computeMetricsFromSegments,
   getDurationBucket,
-  inferCategoryFromSegments,
+  inferZoneFromSegments,
 } from "./workout-metrics.js";
 
 import {createWorkoutBuilder} from "./workout-builder.js";
@@ -54,7 +54,7 @@ let instance = null;
  * @property {HTMLElement} modal
  * @property {HTMLButtonElement} closeBtn
  * @property {HTMLInputElement} searchInput
- * @property {HTMLSelectElement} categoryFilter
+ * @property {HTMLSelectElement} zoneFilter
  * @property {HTMLSelectElement} durationFilter
  * @property {HTMLElement} summaryEl
  * @property {HTMLElement} tbody
@@ -205,7 +205,7 @@ function createWorkoutPicker(config) {
     modal,
     closeBtn,
     searchInput,
-    categoryFilter,
+    zoneFilter,
     durationFilter,
     summaryEl,
     tbody,
@@ -240,36 +240,36 @@ function createWorkoutPicker(config) {
 
   // --------------------------- helpers for derived info ---------------------------
 
-  function getCanonicalCategory(cw) {
-    return inferCategoryFromSegments(cw.rawSegments) || "Uncategorized";
+  function getCanonicalZone(cw) {
+    return inferZoneFromSegments(cw.rawSegments) || "Uncategorized";
   }
 
   /**
    * Structure returned from computeVisiblePickerWorkouts:
-   *   { canonical, category, metrics }
+   *   { canonical, zone, metrics }
    *
    * All display fields (title, description, source, etc.) are taken
-   * directly from `canonical` elsewhere. Only `category` + `metrics`
+   * directly from `canonical` elsewhere. Only `zone` + `metrics`
    * are derived here.
    */
   function computeVisiblePickerWorkouts() {
     const searchTerm = (searchInput?.value || "").toLowerCase();
-    const catValue = categoryFilter?.value || "";
+    const zoneValue = zoneFilter?.value || "";
     const durValue = durationFilter?.value || "";
     const currentFtp = getCurrentFtp();
 
-    /** @type {{ canonical: CanonicalWorkout, category: string, metrics: any }[]} */
+    /** @type {{ canonical: CanonicalWorkout, zone: string, metrics: any }[]} */
     let items = pickerWorkouts.map((canonical) => {
       const metrics = computeMetricsFromSegments(
         canonical.rawSegments,
         currentFtp
       );
-      const category = getCanonicalCategory(canonical);
-      return {canonical, category, metrics};
+      const zone = getCanonicalZone(canonical);
+      return {canonical, zone, metrics};
     });
 
-    if (catValue) {
-      items = items.filter((item) => item.category === catValue);
+    if (zoneValue) {
+      items = items.filter((item) => item.zone === zoneValue);
     }
 
     if (durValue) {
@@ -286,7 +286,7 @@ function createWorkoutPicker(config) {
         const description = canonical.description || "";
         const haystack = [
           title,
-          item.category,
+          item.zone,
           source,
           description.slice(0, 300),
         ]
@@ -326,33 +326,33 @@ function createWorkoutPicker(config) {
     return items;
   }
 
-  function refreshCategoryFilterOptions() {
-    if (!categoryFilter) return;
+  function refreshZoneFilterOptions() {
+    if (!zoneFilter) return;
 
-    const valueBefore = categoryFilter.value;
+    const valueBefore = zoneFilter.value;
     const cats = Array.from(
       new Set(
         pickerWorkouts.map(
-          (cw) => getCanonicalCategory(cw) || "Uncategorized"
+          (cw) => getCanonicalZone(cw) || "Uncategorized"
         )
       )
     ).sort((a, b) => a.localeCompare(b));
 
-    categoryFilter.innerHTML = "";
+    zoneFilter.innerHTML = "";
     const optAll = document.createElement("option");
     optAll.value = "";
     optAll.textContent = "All categories";
-    categoryFilter.appendChild(optAll);
+    zoneFilter.appendChild(optAll);
 
     for (const c of cats) {
       const opt = document.createElement("option");
       opt.value = c;
       opt.textContent = c;
-      categoryFilter.appendChild(opt);
+      zoneFilter.appendChild(opt);
     }
 
     if (cats.includes(valueBefore)) {
-      categoryFilter.value = valueBefore;
+      zoneFilter.value = valueBefore;
     }
   }
 
@@ -404,7 +404,7 @@ function createWorkoutPicker(config) {
     const currentFtp = getCurrentFtp();
 
     for (const item of shownItems) {
-      const {canonical, category, metrics} = item;
+      const {canonical, zone, metrics} = item;
       const title = canonical.workoutTitle;
       const source = canonical.source || "";
       const description = canonical.description || "";
@@ -419,7 +419,7 @@ function createWorkoutPicker(config) {
       tr.appendChild(tdName);
 
       const tdCat = document.createElement("td");
-      tdCat.textContent = category || "Uncategorized";
+      tdCat.textContent = zone || "Uncategorized";
       tr.appendChild(tdCat);
 
       const tdSource = document.createElement("td");
@@ -589,7 +589,7 @@ function createWorkoutPicker(config) {
     if (titleEl) titleEl.textContent = "New Workout";
 
     if (searchInput) searchInput.style.display = "none";
-    if (categoryFilter) categoryFilter.style.display = "none";
+    if (zoneFilter) zoneFilter.style.display = "none";
     if (durationFilter) durationFilter.style.display = "none";
 
     if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
@@ -614,7 +614,7 @@ function createWorkoutPicker(config) {
     if (titleEl) titleEl.textContent = "Workout library";
 
     if (searchInput) searchInput.style.display = "";
-    if (categoryFilter) categoryFilter.style.display = "";
+    if (zoneFilter) zoneFilter.style.display = "";
     if (durationFilter) durationFilter.style.display = "";
 
     if (addWorkoutBtn) addWorkoutBtn.style.display = "inline-flex";
@@ -717,7 +717,7 @@ function createWorkoutPicker(config) {
     if (!saved) return;
 
     if (searchInput) searchInput.value = saved.searchTerm || "";
-    if (categoryFilter) categoryFilter.value = saved.category || "";
+    if (zoneFilter) zoneFilter.value = saved.zone || "";
     if (durationFilter) durationFilter.value = saved.duration || "";
     if (saved.sortKey) pickerSortKey = saved.sortKey;
     if (saved.sortDir === "asc" || saved.sortDir === "desc") {
@@ -728,7 +728,7 @@ function createWorkoutPicker(config) {
   function persistPickerState() {
     const state = {
       searchTerm: searchInput ? searchInput.value : "",
-      category: categoryFilter ? categoryFilter.value : "",
+      zone: zoneFilter ? zoneFilter.value : "",
       duration: durationFilter ? durationFilter.value : "",
       sortKey: pickerSortKey,
       sortDir: pickerSortDir,
@@ -754,7 +754,7 @@ function createWorkoutPicker(config) {
 
     pickerExpandedTitle = null;
     pickerWorkouts = await scanWorkoutsFromDirectory(handle);
-    refreshCategoryFilterOptions();
+    refreshZoneFilterOptions();
 
     await restorePickerStateIntoControls();
     renderWorkoutPickerTable();
@@ -770,7 +770,7 @@ function createWorkoutPicker(config) {
 
   function resetPickerFilters() {
     if (searchInput) searchInput.value = "";
-    if (categoryFilter) categoryFilter.value = "";
+    if (zoneFilter) zoneFilter.value = "";
     if (durationFilter) durationFilter.value = "";
     persistPickerState();
   }
@@ -1111,8 +1111,8 @@ function createWorkoutPicker(config) {
     });
   }
 
-  if (categoryFilter) {
-    categoryFilter.addEventListener("change", () => {
+  if (zoneFilter) {
+    zoneFilter.addEventListener("change", () => {
       renderWorkoutPickerTable();
       persistPickerState();
     });

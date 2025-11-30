@@ -59,13 +59,13 @@ export function computeMetricsFromSegments(rawSegments, ftp) {
   };
 }
 
-// --------------------------- Category inference ---------------------------
+// --------------------------- Zone inference ---------------------------
 
 /**
  * rawSegments: [[minutes, startPct, endPct?], ...]
  * pct values are in % of FTP (e.g. 75 for 75%).
  */
-export function inferCategoryFromSegments(rawSegments) {
+export function inferZoneFromSegments(rawSegments) {
   if (!Array.isArray(rawSegments) || rawSegments.length === 0) {
     return "Uncategorized";
   }

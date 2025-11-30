@@ -131,7 +131,7 @@ function buildWorkoutTooltip(vm) {
     parts.push(`Duration: ${mins} min`);
   }
 
-  if (cw.category) parts.push(`Category: ${cw.category}`);
+  if (cw.zone) parts.push(`Zone: ${cw.zone}`);
   if (typeof cw.ifValue === "number") parts.push(`IF: ${cw.ifValue.toFixed(2)}`);
   if (typeof cw.tss === "number") parts.push(`TSS: ${Math.round(cw.tss)}`);
   parts.push(`FTP: ${Math.round(currentFtp)}`);
@@ -766,7 +766,7 @@ async function initPage() {
     modal: document.getElementById("workoutPickerModal"),
     closeBtn: document.getElementById("workoutPickerCloseBtn"),
     searchInput: document.getElementById("pickerSearchInput"),
-    categoryFilter: document.getElementById("pickerCategoryFilter"),
+    zoneFilter: document.getElementById("pickerZoneFilter"),
     durationFilter: document.getElementById("pickerDurationFilter"),
     summaryEl: document.getElementById("pickerSummary"),
     tbody: document.getElementById("pickerWorkoutTbody"),

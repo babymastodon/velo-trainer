@@ -3,7 +3,7 @@
 import {renderMiniWorkoutGraph} from "./workout-chart.js";
 import {
   computeMetricsFromSegments,
-  inferCategoryFromSegments,
+  inferZoneFromSegments,
 } from "./workout-metrics.js";
 import {
   saveWorkoutBuilderState,
@@ -30,7 +30,7 @@ export function createWorkoutBuilder(options) {
   let currentRawSegments = [];
   let currentErrors = [];
   let currentMetrics = null;
-  let currentCategory = null;
+  let currentZone = null;
 
   // ---------- Layout ----------
   rootEl.innerHTML = "";
@@ -83,7 +83,7 @@ export function createWorkoutBuilder(options) {
   const statKj = createStatChip("kJ");
   const statDuration = createStatChip("Duration");
   const statFtp = createStatChip("FTP");
-  const statCategory = createStatChip("Category");
+  const statZone = createStatChip("Zone");
 
   [
     statTss.el,
@@ -91,7 +91,7 @@ export function createWorkoutBuilder(options) {
     statKj.el,
     statDuration.el,
     statFtp.el,
-    statCategory.el,
+    statZone.el,
   ].forEach((el) => statsRow.appendChild(el));
 
   metaCard.appendChild(metaFields);
@@ -588,7 +588,7 @@ export function createWorkoutBuilder(options) {
 
     if (currentRawSegments.length && ftp > 0) {
       currentMetrics = computeMetricsFromSegments(currentRawSegments, ftp);
-      currentCategory = inferCategoryFromSegments(currentRawSegments);
+      currentZone = inferZoneFromSegments(currentRawSegments);
     } else {
       currentMetrics = {
         totalSec: 0,
@@ -598,7 +598,7 @@ export function createWorkoutBuilder(options) {
         kj: null,
         ftp: ftp || null,
       };
-      currentCategory = null;
+      currentZone = null;
     }
 
     updateStats();
@@ -625,7 +625,7 @@ export function createWorkoutBuilder(options) {
       statDuration.value.textContent = "--";
       statFtp.value.textContent =
         ftp > 0 ? `${Math.round(ftp)} W` : "--";
-      statCategory.value.textContent = currentCategory || "--";
+      statZone.value.textContent = currentZone || "--";
       return;
     }
 
@@ -649,7 +649,7 @@ export function createWorkoutBuilder(options) {
       currentMetrics.ftp != null
         ? `${Math.round(currentMetrics.ftp)} W`
         : "--";
-    statCategory.value.textContent = currentCategory || "--";
+    statZone.value.textContent = currentZone || "--";
   }
 
   function renderChart() {
