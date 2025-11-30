@@ -178,7 +178,7 @@ let lastHoveredSegment = null;
 /**
  * Attaches hover behavior for segments: shows tooltip and highlights polygon.
  */
-function attachSegmentHover(svg, tooltipEl, containerEl) {
+function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
   if (!svg || !tooltipEl || !containerEl) return;
 
   svg.addEventListener("mousemove", (e) => {
@@ -201,12 +201,16 @@ function attachSegmentHover(svg, tooltipEl, containerEl) {
     const zone = segment.dataset.zone;
     const p0 = segment.dataset.p0;
     const p1 = segment.dataset.p1;
-    const durMin = segment.dataset.durMin;
+    const durMin = Number(segment.dataset.durMin);
+    const durSec = Math.round(durMin * 60);
+    const dur = (durMin >= 1) ? `${durMin} min` : `${durSec} sec`;
+    const w0 = Math.round(p0 * ftp / 100);
+    const w1 = Math.round(p1 * ftp / 100);
 
     if (p0 === p1) {
-      tooltipEl.textContent = `${zone}: ${p0}% FTP, ${durMin} min`;
+      tooltipEl.textContent = `${zone}: ${p0}% FTP, ${w0}W, ${dur}`;
     } else {
-      tooltipEl.textContent = `${zone}: ${p0}%–${p1}% FTP, ${durMin} min`;
+      tooltipEl.textContent = `${zone}: ${p0}%–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
     }
     tooltipEl.style.display = "block";
 
@@ -333,7 +337,7 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
   container.appendChild(svg);
   container.appendChild(tooltip);
 
-  attachSegmentHover(svg, tooltip, container);
+  attachSegmentHover(svg, tooltip, container, currentFtp);
 }
 
 // Draw the main workout chart
@@ -511,6 +515,6 @@ export function drawWorkoutChart({
     addPath(pathForKey("cadence"), cadColor, 1.5);
   }
 
-  attachSegmentHover(svg, tooltipEl, panel);
+  attachSegmentHover(svg, tooltipEl, panel, ftp);
 }
 
