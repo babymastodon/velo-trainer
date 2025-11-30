@@ -1,20 +1,23 @@
 // content.js
-// Runs as a classic content script (not a module) and dynamically imports zwo.js as an ES module.
+// Runs as a classic content script (not a module) and dynamically imports scrapers.js as an ES module.
 
 (async () => {
   let parseTrainerRoadPage = null;
   let parseTrainerDayPage = null;
   let parseWhatsOnZwiftPage = null;
 
-  // Try to load the ZWO module dynamically
+  // Try to load the scrapers module dynamically
   try {
-    const zwoUrl = chrome.runtime.getURL("zwo.js");
-    const mod = await import(zwoUrl);
+    const scrapersUrl = chrome.runtime.getURL("scrapers.js");
+    const mod = await import(scrapersUrl);
     parseTrainerRoadPage = mod.parseTrainerRoadPage;
     parseTrainerDayPage = mod.parseTrainerDayPage;
     parseWhatsOnZwiftPage = mod.parseWhatsOnZwiftPage;
   } catch (err) {
-    console.error("[VeloDrive][Content] Failed to load zwo.js module:", err);
+    console.error(
+      "[VeloDrive][Content] Failed to load scrapers.js module:",
+      err
+    );
   }
 
   // ---------------- Site detection ----------------

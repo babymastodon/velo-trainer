@@ -61,7 +61,7 @@
     },
     {
       "resources": [
-        "zwo.js"
+        "scrapers.js"
       ],
       "matches": ["<all_urls>"]
     }

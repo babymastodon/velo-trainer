@@ -12,8 +12,8 @@ import {
 import {
   parseZwoSnippet,
   segmentsToZwoSnippet,
-  importWorkoutFromUrl,
 } from "./zwo.js";
+import {importWorkoutFromUrl} from "./scrapers.js";
 
 /**
  * @typedef WorkoutBuilderOptions
