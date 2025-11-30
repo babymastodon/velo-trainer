@@ -407,7 +407,7 @@ function createWorkoutPicker(config) {
     if (!hasContent) return;
 
     const ok = window.confirm(
-      "Clear the builder?\n\nThis will remove all text and metadata."
+      "Clear the builder? Unsaved edits will be lost."
     );
     if (!ok) return;
 

@@ -294,9 +294,7 @@ export function createWorkoutBuilder(options) {
   codeTextarea.spellcheck = false;
   codeTextarea.rows = 18;
   codeTextarea.placeholder =
-    '<SteadyState Duration="300" Power="0.75" />\n' +
-    '<SteadyState Duration="300" Power="0.85" />\n' +
-    '<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />';
+    'Click the above buttons to add workout blocks.';
   codeTextarea.addEventListener("input", () => autoGrowTextarea(codeTextarea));
   codeTextarea.addEventListener("scroll", () => {
     codeHighlights.scrollTop = codeTextarea.scrollTop;
