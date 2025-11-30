@@ -119,14 +119,15 @@ function formatTimeHHMMSS(sec) {
 }
 
 function buildWorkoutTooltip(vm) {
-  const meta = vm && vm.workoutMeta;
-  if (!meta) return "";
-  const currentFtp = vm.currentFtp || meta.baseFtp || DEFAULT_FTP;
+  const cw = vm && vm.canonicalWorkout;
+  if (!cw) return "";
+
+  const currentFtp = vm.currentFtp || cw.baseFtp || DEFAULT_FTP;
 
   const parts = [];
 
-  if (meta.name) {
-    parts.push(meta.name);
+  if (cw.workoutTitle) {
+    parts.push(cw.workoutTitle);
   }
 
   // Duration (based on workoutTotalSec if available)
@@ -135,39 +136,43 @@ function buildWorkoutTooltip(vm) {
     parts.push(`Duration: ${mins} min`);
   }
 
-  if (meta.category) {
-    parts.push(`Category: ${meta.category}`);
+  if (cw.category) {
+    parts.push(`Category: ${cw.category}`);
   }
 
-  if (typeof meta.ifValue === "number") {
-    parts.push(`IF: ${meta.ifValue.toFixed(2)}`);
+  if (typeof cw.ifValue === "number") {
+    parts.push(`IF: ${cw.ifValue.toFixed(2)}`);
   }
 
-  if (typeof meta.tss === "number") {
-    parts.push(`TSS: ${Math.round(meta.tss)}`);
+  if (typeof cw.tss === "number") {
+    parts.push(`TSS: ${Math.round(cw.tss)}`);
   }
 
   parts.push(`FTP: ${Math.round(currentFtp)}`);
 
-  if (typeof meta.baseKj === "number" && typeof meta.ftpFromFile === "number") {
-    const kJ = getAdjustedKjForPicker(meta.baseKj, meta.ftpFromFile, currentFtp)
+  if (typeof cw.baseKj === "number" && typeof cw.ftpFromFile === "number") {
+    const kJ = getAdjustedKjForPicker(cw.baseKj, cw.ftpFromFile, currentFtp);
     parts.push(`kJ: ${Math.round(kJ)}`);
   }
 
-  if (meta.description) {
+  if (cw.description) {
     parts.push("");
-    parts.push(meta.description);
+    parts.push(cw.description);
   }
 
   return parts.join("\n");
 }
 
-
 function updateWorkoutTitleUI(vm) {
+  const cw = vm.canonicalWorkout;
+
   // Right-side label text/title (even if hidden while running)
   if (workoutNameLabel) {
-    if (vm.workoutMeta) {
-      const name = vm.workoutMeta.name || "Selected workout";
+    if (cw) {
+      const name =
+        cw.workoutTitle ||
+        cw.name || // fallback if CanonicalWorkout still has name
+        "Selected workout";
       workoutNameLabel.textContent = name;
       workoutNameLabel.title = name;
     } else {
@@ -185,7 +190,10 @@ function updateWorkoutTitleUI(vm) {
       modeToggle.style.display = "none";
       workoutTitleCenter.style.display = "block";
 
-      const name = vm.workoutMeta?.name || "Workout running";
+      const name =
+        cw?.workoutTitle ||
+        cw?.name ||
+        "Workout running";
       workoutTitleCenter.textContent = name;
       workoutTitleCenter.title = buildWorkoutTooltip(vm);
 
@@ -488,7 +496,7 @@ function drawChart(vm) {
     bikeConnected &&
     vm &&
     vm.mode === "workout" &&
-    vm.workoutMeta &&
+    vm.canonicalWorkout &&
     !vm.workoutRunning &&
     (vm.elapsedSec || 0) === 0;
 
@@ -503,7 +511,7 @@ function drawChart(vm) {
     bikeConnected &&
     vm &&
     vm.mode === "workout" &&
-    !vm.workoutMeta &&
+    !vm.canonicalWorkout &&
     !vm.workoutRunning;
 
   if (showNoBike) {
@@ -545,25 +553,25 @@ function updatePlaybackButtons(vm) {
   });
 
   // No workout selected → show nothing
-  if (vm.mode === "workout" && !vm.workoutMeta) {
+  if (vm.mode === "workout" && !vm.canonicalWorkout) {
     return;
   }
 
   // Not running yet → show START
   if (!vm.workoutRunning) {
-    if (vm.mode === "workout" && vm.workoutMeta) {
+    if (vm.mode === "workout" && vm.canonicalWorkout && startBtn) {
       startBtn.classList.add("visible");
     }
     return;
   }
 
   // Running → STOP always visible
-  stopBtn.classList.add("visible");
+  if (stopBtn) stopBtn.classList.add("visible");
 
   if (vm.workoutPaused) {
-    playBtn.classList.add("visible");   // resume
+    if (playBtn) playBtn.classList.add("visible");   // resume
   } else {
-    pauseBtn.classList.add("visible");  // pause
+    if (pauseBtn) pauseBtn.classList.add("visible");  // pause
   }
 }
 
@@ -677,7 +685,6 @@ function renderFromEngine(vm) {
   updateStatusOverlay(vm);
 }
 
-
 // --------------------------- Theme re-render ---------------------------
 
 function rerenderThemeSensitive() {
@@ -732,7 +739,6 @@ async function checkLastScrapeAndAlert() {
     }
   }
 }
-
 
 // --------------------------- Init ---------------------------
 

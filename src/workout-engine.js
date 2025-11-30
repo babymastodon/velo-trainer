@@ -3,7 +3,6 @@
 // No direct DOM access; communicates via callbacks.
 /** @typedef {import("./zwo.js").CanonicalWorkout} CanonicalWorkout */
 
-
 import {BleManager} from "./ble-manager.js";
 import {Beeper} from "./beeper.js";
 import {
@@ -27,7 +26,8 @@ export function getWorkoutEngine() {
 
 function createWorkoutEngine() {
   // --------- internal state (no DOM here) ---------
-  let workoutMeta = null;
+  /** @type {CanonicalWorkout | null} */
+  let canonicalWorkout = null;
   let scaledSegments = [];
   let workoutTotalSec = 0;
 
@@ -39,6 +39,7 @@ function createWorkoutEngine() {
   let workoutRunning = false;
   let workoutPaused = false;
   let workoutStarting = false;
+  /** @type {Date | null} */
   let workoutStartedAt = null;
   let elapsedSec = 0;
   let currentIntervalIndex = 0;
@@ -65,16 +66,33 @@ function createWorkoutEngine() {
     onLog(msg);
   }
 
-  // --------- helper: recompute segments ---------
+  // --------- helper: compute segments from CanonicalWorkout ---------
   function rebuildScaledSegments() {
-    if (!workoutMeta || !Array.isArray(workoutMeta.segmentsForMetrics)) {
+    if (!canonicalWorkout || !Array.isArray(canonicalWorkout.rawSegments)) {
       scaledSegments = [];
       workoutTotalSec = 0;
       return;
     }
+
+    const segmentsForMetrics = canonicalWorkout.rawSegments.map(
+      ([minutes, startPct, endPct]) => ({
+        durationSec: (minutes || 0) * 60,
+        pStartRel: (startPct || 0) / 100,
+        pEndRel: (endPct || 0) / 100,
+      })
+    );
+
+    if (!segmentsForMetrics.length) {
+      scaledSegments = [];
+      workoutTotalSec = 0;
+      return;
+    }
+
+    const ftpForScaling = currentFtp || DEFAULT_FTP;
+
     const {scaledSegments: scaled, totalSec} = computeScaledSegments(
-      workoutMeta.segmentsForMetrics,
-      currentFtp || workoutMeta.ftpAtSelection || DEFAULT_FTP
+      segmentsForMetrics,
+      ftpForScaling
     );
     scaledSegments = scaled;
     workoutTotalSec = totalSec;
@@ -144,7 +162,7 @@ function createWorkoutEngine() {
 
   function persistActiveState() {
     const state = {
-      workoutMeta,
+      canonicalWorkout,
       currentFtp,
       mode,
       manualErgTarget,
@@ -164,15 +182,16 @@ function createWorkoutEngine() {
   }
 
   async function saveWorkoutFile() {
-    if (!workoutMeta || !liveSamples.length) return;
+    if (!canonicalWorkout || !liveSamples.length) return;
 
     const dir = await loadWorkoutDirHandle();
     if (!dir) return;
 
     const now = new Date();
     const nameSafe =
-      workoutMeta.name?.replace(/[<>:"/\\|?*]+/g, "_").slice(0, 60) ||
-      "workout";
+      canonicalWorkout.workoutTitle
+        ?.replace(/[<>:"/\\|?*]+/g, "_")
+        .slice(0, 60) || "workout";
     const timestamp = now
       .toISOString()
       .replace(/[:]/g, "-")
@@ -184,8 +203,8 @@ function createWorkoutEngine() {
 
     const payload = {
       meta: {
-        workoutName: workoutMeta.name,
-        fileName: workoutMeta.fileName,
+        workoutName: canonicalWorkout.workoutTitle,
+        fileName: canonicalWorkout.filename,
         ftpUsed: currentFtp,
         startedAt: workoutStartedAt
           ? workoutStartedAt.toISOString()
@@ -202,43 +221,6 @@ function createWorkoutEngine() {
     await writable.close();
 
     log(`Workout saved to ${fileName}`);
-  }
-
-  /**
- * Convert a CanonicalWorkout (from the builder / picker) into
- * the internal workoutMeta shape used by the engine.
- *
- * CanonicalWorkout.rawSegments are [minutes, startPct, endPct].
- * workoutMeta.segmentsForMetrics expect {durationSec, pStartRel, pEndRel}.
- *
- * @param {CanonicalWorkout} canonical
- * @param {number} ftpFallback
- */
-  function canonicalToWorkoutMeta(canonical, ftpFallback) {
-    const raw = Array.isArray(canonical.rawSegments) ? canonical.rawSegments : [];
-
-    const segmentsForMetrics = raw.map(([minutes, startPct, endPct]) => ({
-      durationSec: minutes * 60,      // 1 → 60 sec
-      pStartRel: (startPct || 0) / 100, // 40 → 0.40
-      pEndRel: (endPct || 0) / 100,     // 40 → 0.40
-    }));
-
-    const name =
-      (canonical.workoutTitle || "Custom workout").trim() ||
-      "Custom workout";
-
-    return {
-      // what the rest of the app expects
-      name,
-      description: canonical.description || "",
-      source: canonical.source || "",
-      segmentsForMetrics,
-
-      // useful extras to keep around
-      rawSegments: canonical.rawSegments || [],
-      sourceURL: canonical.sourceURL || "",
-      ftpAtSelection: ftpFallback || DEFAULT_FTP,
-    };
   }
 
   // --------- auto-start / beeps ---------
@@ -425,7 +407,7 @@ function createWorkoutEngine() {
   }
 
   function startWorkout() {
-    if (!workoutMeta || !scaledSegments.length) {
+    if (!canonicalWorkout || !scaledSegments.length) {
       alert("No workout selected. Choose a workout first.");
       return;
     }
@@ -516,7 +498,7 @@ function createWorkoutEngine() {
   function getViewModel() {
     return {
       // core state
-      workoutMeta,
+      canonicalWorkout,
       scaledSegments,
       workoutTotalSec,
       currentFtp,
@@ -554,15 +536,16 @@ function createWorkoutEngine() {
 
     const selected = await loadSelectedWorkout();
     if (selected) {
-      currentFtp = selected.ftpAtSelection || DEFAULT_FTP;
-      workoutMeta = canonicalToWorkoutMeta(selected, currentFtp);
+      canonicalWorkout = selected;
+      // currentFtp is independent of the selection; default already set.
       rebuildScaledSegments();
     }
 
     const active = await loadActiveState();
     if (active) {
       log("Restoring previous active workout state.");
-      workoutMeta = active.workoutMeta;
+
+      canonicalWorkout = active.canonicalWorkout || canonicalWorkout;
       currentFtp = active.currentFtp || currentFtp;
       mode = active.mode || mode;
       manualErgTarget = active.manualErgTarget || manualErgTarget;
@@ -607,7 +590,7 @@ function createWorkoutEngine() {
       emitStateChanged();
     },
     setFtp(newFtp) {
-      currentFtp = newFtp;
+      currentFtp = newFtp || DEFAULT_FTP;
       rebuildScaledSegments();
       scheduleSaveActiveState();
       sendTrainerState(true).catch((err) =>
@@ -629,7 +612,7 @@ function createWorkoutEngine() {
     },
     /**
      * Accept a CanonicalWorkout from the picker / builder and
-     * convert it to the internal workoutMeta shape.
+     * keep it as the internal representation.
      *
      * @param {CanonicalWorkout} canonical
      */
@@ -639,11 +622,12 @@ function createWorkoutEngine() {
         return;
       }
 
-      // Preserve current FTP if already set, otherwise fall back.
-      const ftpToUse = currentFtp || DEFAULT_FTP;
+      canonicalWorkout = canonical;
 
-      workoutMeta = canonicalToWorkoutMeta(canonical, ftpToUse);
-      currentFtp = workoutMeta.ftpAtSelection || ftpToUse || DEFAULT_FTP;
+      // Ensure FTP is at least DEFAULT_FTP, but do not read or store ftpAtSelection.
+      if (!currentFtp || !Number.isFinite(currentFtp)) {
+        currentFtp = DEFAULT_FTP;
+      }
 
       // Reset engine state
       elapsedSec = 0;
@@ -652,7 +636,7 @@ function createWorkoutEngine() {
       zeroPowerSeconds = 0;
       autoPauseDisabledUntilSec = 0;
 
-      // Rebuild scaled segments from the new meta
+      // Rebuild scaled segments from the new canonical workout
       rebuildScaledSegments();
 
       // Clear any persisted "active workout" because we're switching
