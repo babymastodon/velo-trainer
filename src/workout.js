@@ -69,8 +69,6 @@ const workoutTitleCenter = document.getElementById("workoutTitleCenter");
 // --------------------------- UI-local state ---------------------------
 
 let hrBatteryPercent = null;
-
-// Track whether a bike is currently connected (via BLE status)
 let bikeConnected = false;
 
 const logLines = [];
@@ -91,11 +89,9 @@ function logDebug(msg) {
     logLines.splice(0, logLines.length - 5000);
   }
 
-  // Forward to settings modal log view (selection-safe appends happen there)
   try {
     addLogLineToSettings(line);
   } catch (err) {
-    // If settings.js isn't ready yet, just ignore; logs are still in console.
     console.error("[Workout] Failed to forward log to settings:", err);
   }
 }
@@ -112,10 +108,13 @@ function formatTimeHHMMSS(sec) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const ss = s % 60;
-  const hh = String(h).padStart(2, "0");
-  const mm = String(m).padStart(2, "0");
-  const sss = String(ss).padStart(2, "0");
-  return `${hh}:${mm}:${sss}`;
+  return (
+    String(h).padStart(2, "0") +
+    ":" +
+    String(m).padStart(2, "0") +
+    ":" +
+    String(ss).padStart(2, "0")
+  );
 }
 
 function buildWorkoutTooltip(vm) {
@@ -123,31 +122,18 @@ function buildWorkoutTooltip(vm) {
   if (!cw) return "";
 
   const currentFtp = vm.currentFtp || cw.baseFtp || DEFAULT_FTP;
-
   const parts = [];
 
-  if (cw.workoutTitle) {
-    parts.push(cw.workoutTitle);
-  }
+  if (cw.workoutTitle) parts.push(cw.workoutTitle);
 
-  // Duration (based on workoutTotalSec if available)
   if (vm.workoutTotalSec) {
     const mins = Math.round(vm.workoutTotalSec / 60);
     parts.push(`Duration: ${mins} min`);
   }
 
-  if (cw.category) {
-    parts.push(`Category: ${cw.category}`);
-  }
-
-  if (typeof cw.ifValue === "number") {
-    parts.push(`IF: ${cw.ifValue.toFixed(2)}`);
-  }
-
-  if (typeof cw.tss === "number") {
-    parts.push(`TSS: ${Math.round(cw.tss)}`);
-  }
-
+  if (cw.category) parts.push(`Category: ${cw.category}`);
+  if (typeof cw.ifValue === "number") parts.push(`IF: ${cw.ifValue.toFixed(2)}`);
+  if (typeof cw.tss === "number") parts.push(`TSS: ${Math.round(cw.tss)}`);
   parts.push(`FTP: ${Math.round(currentFtp)}`);
 
   if (typeof cw.baseKj === "number" && typeof cw.ftpFromFile === "number") {
@@ -166,12 +152,11 @@ function buildWorkoutTooltip(vm) {
 function updateWorkoutTitleUI(vm) {
   const cw = vm.canonicalWorkout;
 
-  // Right-side label text/title (even if hidden while running)
   if (workoutNameLabel) {
     if (cw) {
       const name =
         cw.workoutTitle ||
-        cw.name || // fallback if CanonicalWorkout still has name
+        cw.name ||
         "Selected workout";
       workoutNameLabel.textContent = name;
       workoutNameLabel.title = name;
@@ -181,12 +166,8 @@ function updateWorkoutTitleUI(vm) {
     }
   }
 
-  // Center title vs mode toggle & hide right label when running
   if (workoutTitleCenter && modeToggle) {
     if (vm.workoutRunning || vm.workoutStarting) {
-      // When workout is started:
-      // - hide mode toggle
-      // - show bold workout name in center with tooltip
       modeToggle.style.display = "none";
       workoutTitleCenter.style.display = "block";
 
@@ -197,16 +178,13 @@ function updateWorkoutTitleUI(vm) {
       workoutTitleCenter.textContent = name;
       workoutTitleCenter.title = buildWorkoutTooltip(vm);
 
-      // Don't show workoutNameLabel on the right while running
       if (workoutNameLabel) {
         workoutNameLabel.style.display = "none";
       }
     } else {
-      // Not running: show mode toggle, hide center title
       modeToggle.style.display = "inline-flex";
       workoutTitleCenter.style.display = "none";
       workoutTitleCenter.title = "";
-      // Let applyModeUI control workoutNameLabel's display in non-running states
     }
   }
 }
@@ -225,9 +203,7 @@ function adjustStatFontSizes() {
     const labelRect = labelEl ? labelEl.getBoundingClientRect() : {height: 0};
     const availableHeight = cardRect.height - labelRect.height - 6;
     const availableWidth = cardRect.width;
-
     const isDouble = valueEl.classList.contains("stat-lg");
-
     const fs = Math.max(
       18,
       Math.min(availableHeight, availableWidth / (isDouble ? 6 : 3)) * 0.9
@@ -252,18 +228,15 @@ function updateChartDimensions() {
 function setBikeStatus({state, message}) {
   if (!bikeStatusDot) return;
 
-  // Tooltip only when we actually have a message
   if (bikeConnectBtn) {
-    if (message) {
-      bikeConnectBtn.title = message;
-    } else {
-      bikeConnectBtn.removeAttribute("title");
-    }
+    if (message) bikeConnectBtn.title = message;
+    else bikeConnectBtn.removeAttribute("title");
   }
 
   bikeStatusDot.classList.remove("connected", "connecting", "error");
 
-  const oldBikeConnected = bikeConnected;
+  const prevConnected = bikeConnected;
+
   if (state === "connected") {
     bikeStatusDot.classList.add("connected");
     bikeConnected = true;
@@ -277,8 +250,7 @@ function setBikeStatus({state, message}) {
     bikeConnected = false;
   }
 
-  // Refresh chart/placeholder when bike connection status changes
-  if (engine && bikeConnected !== oldBikeConnected) {
+  if (engine && bikeConnected !== prevConnected) {
     const vm = engine.getViewModel();
     drawChart(vm);
   }
@@ -287,13 +259,9 @@ function setBikeStatus({state, message}) {
 function setHrStatus({state, message}) {
   if (!hrStatusDot) return;
 
-  // Tooltip only when we actually have a message
   if (hrConnectBtn) {
-    if (message) {
-      hrConnectBtn.title = message;
-    } else {
-      hrConnectBtn.removeAttribute("title");
-    }
+    if (message) hrConnectBtn.title = message;
+    else hrConnectBtn.removeAttribute("title");
   }
 
   hrStatusDot.classList.remove("connected", "connecting", "error");
@@ -319,22 +287,58 @@ function updateHrBatteryLabel() {
 }
 
 function initBleIntegration() {
-  // Status LEDs
-  BleManager.on("bikeStatus", (status) => {
-    setBikeStatus(status);
-  });
+  BleManager.on("bikeStatus", setBikeStatus);
+  BleManager.on("hrStatus", setHrStatus);
 
-  BleManager.on("hrStatus", (status) => {
-    setHrStatus(status);
-  });
-
-  // HR battery is purely UI
   BleManager.on("hrBattery", (pct) => {
     hrBatteryPercent = pct;
     updateHrBatteryLabel();
   });
 
   BleManager.on("log", logDebug);
+}
+
+// --------------------------- Workout structure helpers ---------------------------
+
+// Total duration from CanonicalWorkout.rawSegments
+function totalDurationSec(rawSegments) {
+  return rawSegments.reduce(
+    (sum, [minutes]) => sum + Math.max(1, Math.round((minutes || 0) * 60)),
+    0
+  );
+}
+
+/**
+ * Compute target workout power at a given time (seconds),
+ * based on canonicalWorkout.rawSegments. Used for zone color + stats.
+ */
+function getWorkoutTargetAtTime(vm, tSec) {
+  const cw = vm.canonicalWorkout;
+  const raws = cw && cw.rawSegments;
+  if (!raws || !raws.length) return null;
+
+  const ftp = vm.currentFtp || cw.baseFtp || DEFAULT_FTP;
+  const totalSec = vm.workoutTotalSec || totalDurationSec(raws);
+  const t = Math.min(Math.max(0, tSec), totalSec || 1);
+
+  let acc = 0;
+  for (const [minutes, startPct, endPct] of raws) {
+    const dur = Math.max(1, Math.round((minutes || 0) * 60));
+    const start = acc;
+    const end = acc + dur;
+    if (t < end) {
+      const pStartRel = (startPct || 0) / 100;
+      const pEndRel = (endPct != null ? endPct : startPct || 0) / 100;
+      const rel = (t - start) / dur;
+      const startW = pStartRel * ftp;
+      const endW = pEndRel * ftp;
+      const target = startW + (endW - startW) * Math.min(1, Math.max(0, rel));
+      return Math.round(target);
+    }
+    acc = end;
+  }
+
+  return null;
 }
 
 // --------------------------- Zone color & stats rendering ---------------------------
@@ -345,28 +349,7 @@ function getCurrentZoneColor(vm) {
 
   if (vm.mode === "workout") {
     const t = vm.elapsedSec > 0 ? vm.elapsedSec : 0;
-    let target = null;
-    if (vm.scaledSegments && vm.scaledSegments.length) {
-      const totalSec = vm.workoutTotalSec || 1;
-      const clampedT = Math.min(Math.max(0, t), totalSec);
-      let seg = vm.scaledSegments[vm.currentIntervalIndex || 0];
-      if (
-        !seg ||
-        clampedT < seg.startTimeSec ||
-        clampedT >= seg.endTimeSec
-      ) {
-        seg = vm.scaledSegments.find(
-          (s) => clampedT >= s.startTimeSec && clampedT < s.endTimeSec
-        );
-      }
-      if (seg) {
-        const rel = (clampedT - seg.startTimeSec) / seg.durationSec;
-        target =
-          seg.targetWattsStart +
-          (seg.targetWattsEnd - seg.targetWattsStart) *
-          Math.min(1, Math.max(0, rel));
-      }
-    }
+    const target = getWorkoutTargetAtTime(vm, t);
     refPower = target || vm.lastSamplePower || ftp * 0.6;
   } else if (vm.mode === "erg") {
     refPower = vm.manualErgTarget || ftp * 0.6;
@@ -389,31 +372,12 @@ function updateStatsDisplay(vm) {
     statPowerEl.textContent = String(p < 0 ? 0 : p);
   }
 
-  // target power
   let target = null;
   if (vm.mode === "erg") {
     target = vm.manualErgTarget;
-  } else if (vm.mode === "workout" && vm.scaledSegments?.length) {
-    const totalSec = vm.workoutTotalSec || 1;
+  } else if (vm.mode === "workout" && vm.canonicalWorkout?.rawSegments?.length) {
     const t = vm.workoutRunning || vm.elapsedSec > 0 ? vm.elapsedSec : 0;
-    const clampedT = Math.min(Math.max(0, t), totalSec);
-    let seg = vm.scaledSegments[vm.currentIntervalIndex || 0];
-    if (
-      !seg ||
-      clampedT < seg.startTimeSec ||
-      clampedT >= seg.endTimeSec
-    ) {
-      seg = vm.scaledSegments.find(
-        (s) => clampedT >= s.startTimeSec && clampedT < s.endTimeSec
-      );
-    }
-    if (seg) {
-      const rel = (clampedT - seg.startTimeSec) / seg.durationSec;
-      target =
-        seg.targetWattsStart +
-        (seg.targetWattsEnd - seg.targetWattsStart) *
-        Math.min(1, Math.max(0, rel));
-    }
+    target = getWorkoutTargetAtTime(vm, t);
   }
 
   if (statTargetPowerEl) {
@@ -433,9 +397,7 @@ function updateStatsDisplay(vm) {
     statElapsedTimeEl.textContent = formatTimeHHMMSS(vm.elapsedSec || 0);
   }
   if (statIntervalTimeEl) {
-    statIntervalTimeEl.textContent = formatTimeMMSS(
-      vm.intervalElapsedSec || 0
-    );
+    statIntervalTimeEl.textContent = formatTimeMMSS(vm.intervalElapsedSec || 0);
   }
 
   let color = getCurrentZoneColor(vm);
@@ -460,7 +422,6 @@ function setChartEmptyState(kind) {
   }
 
   chartEmptyOverlay.style.display = "flex";
-
   chartEmptyArrow.style.display = "";
   chartEmptyArrow.classList.remove(
     "chart-empty-arrow--left",
@@ -470,18 +431,15 @@ function setChartEmptyState(kind) {
   if (kind === "noBike") {
     chartEmptyMessage.textContent = "Connect your bike";
     chartEmptyArrow.classList.add("chart-empty-arrow--left");
-
   } else if (kind === "noWorkout") {
     chartEmptyMessage.textContent = "Select a workout";
     chartEmptyArrow.classList.add("chart-empty-arrow--right");
-
   } else if (kind === "readyToStart") {
     chartEmptyMessage.textContent = "Pedal to begin or click start";
     chartEmptyArrow.classList.add("chart-empty-arrow--right");
-
   } else if (kind === "resume") {
     chartEmptyMessage.textContent = "Pedal to resume";
-    chartEmptyArrow.style.display = "none";   // <-- HIDE ARROW
+    chartEmptyArrow.style.display = "none";
   }
 }
 
@@ -536,8 +494,7 @@ function drawChart(vm) {
     height: chartHeight,
     mode: vm.mode,
     ftp: vm.currentFtp || DEFAULT_FTP,
-    scaledSegments: vm.scaledSegments,
-    totalSec: vm.workoutTotalSec,
+    rawSegments: vm.canonicalWorkout?.rawSegments || [],
     elapsedSec: vm.elapsedSec,
     liveSamples: vm.liveSamples,
     manualErgTarget: vm.manualErgTarget,
@@ -547,17 +504,14 @@ function drawChart(vm) {
 // --------------------------- Playback buttons ---------------------------
 
 function updatePlaybackButtons(vm) {
-  // Hide all buttons first
-  [startBtn, playBtn, pauseBtn, stopBtn].forEach(btn => {
+  [startBtn, playBtn, pauseBtn, stopBtn].forEach((btn) => {
     if (btn) btn.classList.remove("visible");
   });
 
-  // No workout selected → show nothing
   if (vm.mode === "workout" && !vm.canonicalWorkout) {
     return;
   }
 
-  // Not running yet → show START
   if (!vm.workoutRunning) {
     if (vm.mode === "workout" && vm.canonicalWorkout && startBtn) {
       startBtn.classList.add("visible");
@@ -565,13 +519,12 @@ function updatePlaybackButtons(vm) {
     return;
   }
 
-  // Running → STOP always visible
   if (stopBtn) stopBtn.classList.add("visible");
 
   if (vm.workoutPaused) {
-    if (playBtn) playBtn.classList.add("visible");   // resume
+    if (playBtn) playBtn.classList.add("visible");
   } else {
-    if (pauseBtn) pauseBtn.classList.add("visible");  // pause
+    if (pauseBtn) pauseBtn.classList.add("visible");
   }
 }
 
@@ -594,13 +547,8 @@ function applyModeUI(vm) {
       manualInputEl.value = String(vm.manualErgTarget || 0);
     }
 
-    if (manualUnitEl) {
-      manualUnitEl.textContent = "W";
-    }
-
-    // NEW: hide workout label in ERG mode
+    if (manualUnitEl) manualUnitEl.textContent = "W";
     workoutNameLabel.style.display = "none";
-
   } else if (vm.mode === "resistance") {
     manualControls.style.display = "inline-flex";
 
@@ -608,17 +556,11 @@ function applyModeUI(vm) {
       manualInputEl.value = String(vm.manualResistance || 0);
     }
 
-    if (manualUnitEl) {
-      manualUnitEl.textContent = "%";
-    }
-
-    // NEW: hide workout label in Resistance mode
+    if (manualUnitEl) manualUnitEl.textContent = "%";
     workoutNameLabel.style.display = "none";
-
   } else {
-    // Workout mode
     manualControls.style.display = "none";
-    workoutNameLabel.style.display = "flex"; // visible in workout mode (when not running)
+    workoutNameLabel.style.display = "flex";
   }
 }
 
@@ -627,7 +569,6 @@ function normaliseManualErgValue(raw, vm, currentFtp) {
   if (!Number.isFinite(n)) {
     return vm.manualErgTarget || vm.currentFtp || DEFAULT_FTP;
   }
-  // Reasonable ERG bounds
   return Math.min(currentFtp * 2.5, Math.max(50, Math.round(n)));
 }
 
@@ -636,7 +577,6 @@ function normaliseManualResistanceValue(raw, vm) {
   if (!Number.isFinite(n)) {
     return vm.manualResistance || 0;
   }
-  // Resistance as 0–100 %
   return Math.min(100, Math.max(0, Math.round(n)));
 }
 
@@ -670,8 +610,7 @@ function handleManualInputSave() {
 // --------------------------- Status overlay (countdown / paused / resumed) ---------------------------
 
 function updateStatusOverlay(_vm) {
-  // Currently driven from Beeper; no-op from UI side for now.
-  void _vm;
+  void _vm; // currently driven via Beeper overlays
 }
 
 // --------------------------- Render from engine state ---------------------------
@@ -702,9 +641,7 @@ async function handleLastScrapedWorkout() {
       loadLastScrapedWorkout(),
     ]);
 
-    if (!justScraped || !last) {
-      return;
-    }
+    if (!justScraped || !last) return;
 
     const name = last.workoutTitle || "(unnamed workout)";
     const success = !!last.success;
@@ -713,14 +650,12 @@ async function handleLastScrapedWorkout() {
     const error = last.error || "";
 
     const baseLines = [];
-
     baseLines.push(`New workout detected 🎉`);
     baseLines.push(`Title: ${name}`);
     if (source) baseLines.push(`Source: ${source}`);
     if (url) baseLines.push(`URL: ${url}`);
 
     if (!success || !engine) {
-      // If scrape failed or engine isn't ready, just show a friendly message.
       baseLines.push("");
       baseLines.push("Unfortunately we couldn’t load this workout automatically.");
       if (!success && error) {
@@ -733,19 +668,14 @@ async function handleLastScrapedWorkout() {
 
     const vm = engine.getViewModel();
     const hasActiveWorkout =
-      !!vm &&
-      (vm.workoutRunning ||
-        vm.workoutPaused ||
-        vm.workoutStarting);
+      vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
 
     if (!hasActiveWorkout) {
-      // No active workout: switch to workout mode if needed and load the new one.
       if (vm.mode !== "workout") {
         engine.setMode("workout");
       }
       engine.setWorkoutFromPicker(last);
 
-      // Also save the scraped workout into the ZWO directory.
       try {
         await picker.saveCanonicalWorkoutToZwoDir(last);
       } catch (err) {
@@ -753,10 +683,11 @@ async function handleLastScrapedWorkout() {
       }
 
       baseLines.push("");
-      baseLines.push("This workout has been loaded as your current selection and saved to your workout folder. You can start it whenever you’re ready.");
+      baseLines.push(
+        "This workout has been loaded as your current selection and saved to your workout folder. You can start it whenever you’re ready."
+      );
       alert(baseLines.join("\n"));
     } else {
-      // Active workout exists: ask if user wants to end & replace it.
       const replace = confirm(
         "A workout is currently in progress.\n\nDo you want to end it now (it will be saved) and switch to the newly imported workout?"
       );
@@ -770,7 +701,6 @@ async function handleLastScrapedWorkout() {
         }
         engine.setWorkoutFromPicker(last);
 
-        // Also save the scraped workout into the ZWO directory.
         try {
           await saveCanonicalWorkoutToZwoDir(last);
         } catch (err) {
@@ -779,11 +709,15 @@ async function handleLastScrapedWorkout() {
 
         baseLines.push("");
         baseLines.push("Your previous workout was ended and saved.");
-        baseLines.push("The newly imported workout has been loaded and saved to your workout folder. You can start it when you’re ready.");
+        baseLines.push(
+          "The newly imported workout has been loaded and saved to your workout folder. You can start it when you’re ready."
+        );
         alert(baseLines.join("\n"));
       } else {
         baseLines.push("");
-        baseLines.push("No changes made. Your current workout remains active, and the imported workout was not loaded.");
+        baseLines.push(
+          "No changes made. Your current workout remains active, and the imported workout was not loaded."
+        );
         alert(baseLines.join("\n"));
       }
     }
@@ -794,7 +728,6 @@ async function handleLastScrapedWorkout() {
       "If you’re debugging this app, check the console for more details."
     );
   } finally {
-    // Ensure the flag is cleared so we only prompt once per scrape
     try {
       await clearJustScrapedFlag();
     } catch (err) {
@@ -803,7 +736,6 @@ async function handleLastScrapedWorkout() {
   }
 }
 
-
 // --------------------------- Init ---------------------------
 
 async function initPage() {
@@ -811,34 +743,24 @@ async function initPage() {
 
   engine = getWorkoutEngine();
 
-  // Initialize engine first so it has state before we wire UI events that call it.
   await engine.init({
     onStateChanged: (vm) => renderFromEngine(vm),
     onLog: logDebug,
-    onWorkoutEnded: () => {
-      // nothing special for now; HUD re-renders via onStateChanged
-    },
+    onWorkoutEnded: () => {},
   });
 
-  // BLE
   initBleIntegration();
   updateHrBatteryLabel();
 
-  // Settings modal (handles startup checks, dirs, sound, env, logs view)
   await initSettings();
-
-  // Check if a workout was just scraped and, if so, load/offer to replace
   await handleLastScrapedWorkout();
 
   if (window.matchMedia) {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
-      rerenderThemeSensitive();
-    };
+    const handler = () => rerenderThemeSensitive();
     if (mql.addEventListener) mql.addEventListener("change", handler);
   }
 
-  // Picker singleton
   picker = getWorkoutPicker({
     overlay: document.getElementById("workoutPickerOverlay"),
     modal: document.getElementById("workoutPickerModal"),
@@ -854,7 +776,6 @@ async function initPage() {
     },
   });
 
-  // Workout name: click -> picker (guard if workout running)
   if (workoutNameLabel) {
     workoutNameLabel.dataset.clickable = "true";
     workoutNameLabel.title = "Click to choose a workout.";
@@ -864,13 +785,12 @@ async function initPage() {
         alert("End the current workout before changing the workout selection.");
         return;
       }
-      picker
-        .open()
-        .catch((err) => logDebug("Workout picker open error: " + err));
+      picker.open().catch((err) =>
+        logDebug("Workout picker open error: " + err)
+      );
     });
   }
 
-  // Connect buttons
   if (bikeConnectBtn) {
     bikeConnectBtn.addEventListener("click", async () => {
       if (!navigator.bluetooth) {
@@ -879,7 +799,6 @@ async function initPage() {
       }
       try {
         await BleManager.connectBikeViaPicker();
-        // engine will push desired state on next relevant change
       } catch (err) {
         logDebug("BLE connect canceled or failed (bike): " + err);
         setBikeStatus("error");
@@ -902,7 +821,6 @@ async function initPage() {
     });
   }
 
-  // Mode toggle
   if (modeToggle) {
     modeToggle.addEventListener("click", (e) => {
       const btn = e.target.closest(".mode-toggle-button");
@@ -916,7 +834,6 @@ async function initPage() {
     });
   }
 
-  // Manual +/- controls
   if (manualControls) {
     manualControls.addEventListener("click", (ev) => {
       const btn = ev.target.closest(".control-btn");
@@ -931,7 +848,6 @@ async function initPage() {
     });
   }
 
-  // Manual text input for ERG / Resistance
   if (manualInputEl) {
     manualInputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -946,7 +862,6 @@ async function initPage() {
     });
   }
 
-  // Playback buttons
   if (startBtn) {
     startBtn.addEventListener("click", () => {
       engine.startWorkout();
@@ -955,13 +870,13 @@ async function initPage() {
 
   if (playBtn) {
     playBtn.addEventListener("click", () => {
-      engine.startWorkout(); // resume
+      engine.startWorkout();
     });
   }
 
   if (pauseBtn) {
     pauseBtn.addEventListener("click", () => {
-      engine.startWorkout(); // pause
+      engine.startWorkout();
     });
   }
 
@@ -973,7 +888,6 @@ async function initPage() {
     });
   }
 
-  // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
     const tag = e.target && e.target.tagName;
     const vm = engine.getViewModel();
@@ -987,26 +901,18 @@ async function initPage() {
     }
 
     if (e.key === "Escape") {
-      if (picker) {
-        picker.close();
-      }
-      // Settings ESC handling is in settings.js
+      if (picker) picker.close();
     }
   });
 
-  // Initial layout & chart
   adjustStatFontSizes();
-  const vm = engine.getViewModel();
-  renderFromEngine(vm);
+  renderFromEngine(engine.getViewModel());
 
-  // Resize handler
   window.addEventListener("resize", () => {
     adjustStatFontSizes();
-    const currentVm = engine.getViewModel();
-    drawChart(currentVm);
+    drawChart(engine.getViewModel());
   });
 
-  // Re-check on focus (flag ensures we only prompt once per scrape)
   window.addEventListener("focus", () => {
     handleLastScrapedWorkout().catch((err) => {
       console.error("[Workout] focus scrape check error:", err);

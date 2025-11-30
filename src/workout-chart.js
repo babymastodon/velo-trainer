@@ -1,5 +1,5 @@
 // workout-chart.js
-// Shared chart helpers: zones, colors, scaled segments, SVG rendering, hover.
+// Shared chart helpers: zones, colors, SVG rendering, hover, and raw-segment handling.
 
 import {DEFAULT_FTP} from "./workout-metrics.js";
 
@@ -45,8 +45,7 @@ export function mixColors(hexA, hexB, factor) {
  * Returns: { key, color, bg }
  */
 export function zoneInfoFromRel(rel) {
-  const clampedRel = Math.max(0, rel);
-  const pct = clampedRel * 100;
+  const pct = Math.max(0, rel) * 100;
   let key = "Recovery";
   if (pct < 60) key = "Recovery";
   else if (pct < 76) key = "Base";
@@ -70,44 +69,6 @@ export function zoneInfoFromRel(rel) {
   return {key, color, bg};
 }
 
-// --------------------------- Segment scaling ---------------------------
-
-/**
- * Converts "segments for metrics" into scaled segments with absolute times
- * and target watts, ready for rendering/use in the workout engine.
- *
- * segments: [{ durationSec, pStartRel, pEndRel }, ...]
- */
-export function computeScaledSegments(segments, ftp) {
-  let t = 0;
-  const scaled = (segments || []).map((seg) => {
-    const dur = Math.max(1, Math.round(seg.durationSec || 0));
-    const pStartRel = seg.pStartRel || 0;
-    const pEndRel = seg.pEndRel != null ? seg.pEndRel : pStartRel;
-
-    const targetWattsStart = Math.round(ftp * pStartRel);
-    const targetWattsEnd = Math.round(ftp * pEndRel);
-
-    const s = {
-      durationSec: dur,
-      startTimeSec: t,
-      endTimeSec: t + dur,
-      targetWattsStart,
-      targetWattsEnd,
-      pStartRel,
-      pEndRel,
-    };
-
-    t += dur;
-    return s;
-  });
-
-  return {
-    scaledSegments: scaled,
-    totalSec: t,
-  };
-}
-
 // --------------------------- SVG helpers ---------------------------
 
 function clearSvg(svg) {
@@ -116,38 +77,40 @@ function clearSvg(svg) {
 }
 
 /**
- * Renders a single workout segment polygon into an SVG, with data attributes
- * for hover tooltips. Used by both the main workout chart and the mini graphs.
+ * Draw a single polygon segment, with tooltip data.
+ * Arguments are all primitive values; no intermediate segment objects.
  */
-function renderWorkoutSegmentPolygon({
+function renderSegmentPolygon({
   svg,
-  seg,
   totalSec,
   width,
   height,
   ftp,
   maxY,
+  tStart,
+  tEnd,
+  pStartRel,
+  pEndRel,
 }) {
-  if (!svg || !totalSec || totalSec <= 0) return;
+  if (!svg || totalSec <= 0) return;
 
   const w = width;
   const h = height;
 
-  const x1 = (seg.startTimeSec / totalSec) * w;
-  const x2 = (seg.endTimeSec / totalSec) * w;
+  const x1 = (tStart / totalSec) * w;
+  const x2 = (tEnd / totalSec) * w;
 
-  const avgRel = (seg.pStartRel + seg.pEndRel) / 2;
+  const avgRel = (pStartRel + pEndRel) / 2;
   const zone = zoneInfoFromRel(avgRel);
 
-  const p0 = seg.pStartRel * ftp;
-  const p1 = seg.pEndRel * ftp;
+  const p0 = pStartRel * ftp;
+  const p1 = pEndRel * ftp;
 
   const y0 = h - (Math.min(maxY, Math.max(0, p0)) / maxY) * h;
   const y1 = h - (Math.min(maxY, Math.max(0, p1)) / maxY) * h;
 
   const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-  const pts = `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`;
-  poly.setAttribute("points", pts);
+  poly.setAttribute("points", `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`);
 
   const muted = mixColors(zone.color, zone.bg, 0.3);
   const hover = mixColors(zone.color, zone.bg, 0.15);
@@ -157,9 +120,9 @@ function renderWorkoutSegmentPolygon({
   poly.setAttribute("stroke", "none");
   poly.classList.add("chart-segment");
 
-  const p0Pct = seg.pStartRel * 100;
-  const p1Pct = seg.pEndRel * 100;
-  const durMin = seg.durationSec / 60;
+  const durMin = (tEnd - tStart) / 60;
+  const p0Pct = pStartRel * 100;
+  const p1Pct = pEndRel * 100;
 
   poly.dataset.zone = zone.key;
   poly.dataset.p0 = p0Pct.toFixed(0);
@@ -190,9 +153,7 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
         const prevColor =
           lastHoveredSegment.dataset.mutedColor ||
           lastHoveredSegment.dataset.color;
-        if (prevColor) {
-          lastHoveredSegment.setAttribute("fill", prevColor);
-        }
+        if (prevColor) lastHoveredSegment.setAttribute("fill", prevColor);
         lastHoveredSegment = null;
       }
       return;
@@ -203,15 +164,14 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     const p1 = segment.dataset.p1;
     const durMin = Number(segment.dataset.durMin);
     const durSec = Math.round(durMin * 60);
-    const dur = (durMin >= 1) ? `${durMin} min` : `${durSec} sec`;
-    const w0 = Math.round(p0 * ftp / 100);
-    const w1 = Math.round(p1 * ftp / 100);
+    const dur = durMin >= 1 ? `${durMin} min` : `${durSec} sec`;
+    const w0 = Math.round((p0 * ftp) / 100);
+    const w1 = Math.round((p1 * ftp) / 100);
 
-    if (p0 === p1) {
-      tooltipEl.textContent = `${zone}: ${p0}% FTP, ${w0}W, ${dur}`;
-    } else {
-      tooltipEl.textContent = `${zone}: ${p0}%–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
-    }
+    tooltipEl.textContent =
+      p0 === p1
+        ? `${zone}: ${p0}% FTP, ${w0}W, ${dur}`
+        : `${zone}: ${p0}%–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
     tooltipEl.style.display = "block";
 
     const panelRect = containerEl.getBoundingClientRect();
@@ -235,18 +195,14 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
       const prevColor =
         lastHoveredSegment.dataset.mutedColor ||
         lastHoveredSegment.dataset.color;
-      if (prevColor) {
-        lastHoveredSegment.setAttribute("fill", prevColor);
-      }
+      if (prevColor) lastHoveredSegment.setAttribute("fill", prevColor);
     }
 
     const hoverColor =
       segment.dataset.hoverColor ||
       segment.dataset.color ||
       segment.dataset.mutedColor;
-    if (hoverColor) {
-      segment.setAttribute("fill", hoverColor);
-    }
+    if (hoverColor) segment.setAttribute("fill", hoverColor);
 
     lastHoveredSegment = segment;
   });
@@ -257,12 +213,54 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
       const prevColor =
         lastHoveredSegment.dataset.mutedColor ||
         lastHoveredSegment.dataset.color;
-      if (prevColor) {
-        lastHoveredSegment.setAttribute("fill", prevColor);
-      }
+      if (prevColor) lastHoveredSegment.setAttribute("fill", prevColor);
       lastHoveredSegment = null;
     }
   });
+}
+
+// --------------------------- rawSegments helpers ---------------------------
+
+function totalDurationSec(rawSegments) {
+  return rawSegments.reduce(
+    (sum, [minutes]) => sum + Math.max(1, Math.round((minutes || 0) * 60)),
+    0
+  );
+}
+
+/**
+ * Draw all canonicalWorkout.rawSegments as polygons, using a running time cursor.
+ */
+function renderSegmentsFromRaw({
+  svg,
+  rawSegments,
+  totalSec,
+  width,
+  height,
+  ftp,
+  maxY,
+}) {
+  let t = 0;
+  for (const [minutes, startPct, endPct] of rawSegments) {
+    const durSec = Math.max(1, Math.round((minutes || 0) * 60));
+    const pStartRel = (startPct || 0) / 100;
+    const pEndRel = (endPct != null ? endPct : startPct || 0) / 100;
+
+    renderSegmentPolygon({
+      svg,
+      totalSec,
+      width,
+      height,
+      ftp,
+      maxY,
+      tStart: t,
+      tEnd: t + durSec,
+      pStartRel,
+      pEndRel,
+    });
+
+    t += durSec;
+  }
 }
 
 // --------------------------- Mini workout graph (picker) ---------------------------
@@ -271,14 +269,14 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
  * Renders a small workout profile chart into a container for the picker.
  *
  * - container: DOM element where the SVG + tooltip go.
- * - workout: object from parseZwo (must have segmentsForMetrics, ftpAtSelection / ftpFromFile)
+ * - workout: CanonicalWorkout (must have rawSegments)
  * - currentFtp: current FTP used in the picker view.
  */
 export function renderMiniWorkoutGraph(container, workout, currentFtp) {
   container.innerHTML = "";
 
-  const baseSegments = workout.segmentsForMetrics || [];
-  if (!baseSegments.length) {
+  const rawSegments = workout?.rawSegments || [];
+  if (!rawSegments.length) {
     container.textContent = "No workout structure available.";
     container.classList.add("picker-detail-empty");
     return;
@@ -286,16 +284,13 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
 
   const ftp =
     currentFtp ||
+    workout.baseFtp ||
     workout.ftpAtSelection ||
     workout.ftpFromFile ||
     DEFAULT_FTP;
 
-  const {scaledSegments, totalSec} = computeScaledSegments(
-    baseSegments,
-    ftp
-  );
-
-  if (!scaledSegments.length || totalSec <= 0) {
+  const totalSec = totalDurationSec(rawSegments);
+  if (!totalSec) {
     container.textContent = "No workout structure available.";
     container.classList.add("picker-detail-empty");
     return;
@@ -319,16 +314,14 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
 
   const maxY = Math.max(200, ftp * 2);
 
-  scaledSegments.forEach((seg) => {
-    renderWorkoutSegmentPolygon({
-      svg,
-      seg,
-      totalSec,
-      width,
-      height,
-      ftp,
-      maxY,
-    });
+  renderSegmentsFromRaw({
+    svg,
+    rawSegments,
+    totalSec,
+    width,
+    height,
+    ftp,
+    maxY,
   });
 
   const tooltip = document.createElement("div");
@@ -337,10 +330,10 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
   container.appendChild(svg);
   container.appendChild(tooltip);
 
-  attachSegmentHover(svg, tooltip, container, currentFtp);
+  attachSegmentHover(svg, tooltip, container, ftp);
 }
 
-// Draw the main workout chart
+// --------------------------- Main workout chart ---------------------------
 
 export function drawWorkoutChart({
   svg,
@@ -350,8 +343,7 @@ export function drawWorkoutChart({
   height,
   mode,
   ftp,
-  scaledSegments,
-  totalSec,
+  rawSegments,     // CanonicalWorkout.rawSegments
   elapsedSec,
   liveSamples,
   manualErgTarget,
@@ -390,43 +382,46 @@ export function drawWorkoutChart({
     svg.appendChild(label);
   }
 
-  const safeTotalSec = totalSec || 1;
+  // horizontal span (seconds)
+  const samples = liveSamples || [];
+  let totalFromStructure =
+    rawSegments && rawSegments.length ? totalDurationSec(rawSegments) : 0;
 
-  // workout segments
-  if (mode === "workout" && scaledSegments && scaledSegments.length) {
-    scaledSegments.forEach((seg) => {
-      renderWorkoutSegmentPolygon({
-        svg,
-        seg,
-        totalSec: safeTotalSec,
-        width: w,
-        height: h,
-        ftp,
-        maxY,
-      });
-    });
-  }
+  let safeTotalSec = Math.max(
+    1,
+    totalFromStructure,
+    elapsedSec || 0,
+    samples.length ? samples[samples.length - 1].t || 0 : 0
+  );
 
-  // ERG mode target
-  if (mode === "erg") {
-    const pctFtp = manualErgTarget / ((ftp > 0) ? ftp : DEFAULT_FTP);
-    const seg = {
-      durationSec: safeTotalSec,
-      startTimeSec: 0,
-      endTimeSec: safeTotalSec,
-      targetWattsStart: manualErgTarget,
-      targetWattsEnd: manualErgTarget,
-      pStartRel: pctFtp,
-      pEndRel: pctFtp,
-    };
-    renderWorkoutSegmentPolygon({
+  // workout segments (from rawSegments)
+  if (mode === "workout" && rawSegments && rawSegments.length) {
+    renderSegmentsFromRaw({
       svg,
-      seg,
+      rawSegments,
       totalSec: safeTotalSec,
       width: w,
       height: h,
       ftp,
       maxY,
+    });
+  }
+
+  // ERG mode target (no structure needed)
+  if (mode === "erg") {
+    const ftpForErg = ftp > 0 ? ftp : DEFAULT_FTP;
+    const pctFtp = manualErgTarget / ftpForErg;
+    renderSegmentPolygon({
+      svg,
+      totalSec: safeTotalSec,
+      width: w,
+      height: h,
+      ftp,
+      maxY,
+      tStart: 0,
+      tEnd: safeTotalSec,
+      pStartRel: pctFtp,
+      pEndRel: pctFtp,
     });
   }
 
@@ -479,7 +474,6 @@ export function drawWorkoutChart({
   svg.appendChild(posLine);
 
   // live sample lines
-  const samples = liveSamples || [];
   const powerColor = getCssVar("--power-line");
   const hrColor = getCssVar("--hr-line");
   const cadColor = getCssVar("--cad-line");

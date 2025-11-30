@@ -5,10 +5,7 @@
 
 import {BleManager} from "./ble-manager.js";
 import {Beeper} from "./beeper.js";
-import {
-  DEFAULT_FTP,
-  computeScaledSegments,
-} from "./workout-metrics.js";
+import {DEFAULT_FTP} from "./workout-metrics.js";
 import {
   loadSelectedWorkout,
   loadActiveState,
@@ -25,10 +22,8 @@ export function getWorkoutEngine() {
 }
 
 function createWorkoutEngine() {
-  // --------- internal state (no DOM here) ---------
   /** @type {CanonicalWorkout | null} */
   let canonicalWorkout = null;
-  let scaledSegments = [];
   let workoutTotalSec = 0;
 
   let currentFtp = DEFAULT_FTP;
@@ -54,77 +49,79 @@ function createWorkoutEngine() {
 
   let liveSamples = [];
   let workoutTicker = null;
-
   let saveStateTimer = null;
 
-  // --------- callbacks into UI ---------
   let onStateChanged = () => {};
   let onLog = () => {};
   let onWorkoutEnded = () => {};
 
-  function log(msg) {
-    onLog(msg);
-  }
+  const log = (msg) => onLog(msg);
 
-  // --------- helper: compute segments from CanonicalWorkout ---------
-  function rebuildScaledSegments() {
-    if (!canonicalWorkout || !Array.isArray(canonicalWorkout.rawSegments)) {
-      scaledSegments = [];
+  // --------- helpers for rawSegments ---------
+
+  function recomputeWorkoutTotalSec() {
+    if (!canonicalWorkout) {
       workoutTotalSec = 0;
       return;
     }
-
-    const segmentsForMetrics = canonicalWorkout.rawSegments.map(
-      ([minutes, startPct, endPct]) => ({
-        durationSec: (minutes || 0) * 60,
-        pStartRel: (startPct || 0) / 100,
-        pEndRel: (endPct || 0) / 100,
-      })
+    workoutTotalSec = canonicalWorkout.rawSegments.reduce(
+      (sum, [minutes]) => sum + Math.max(1, Math.round((minutes || 0) * 60)),
+      0
     );
-
-    if (!segmentsForMetrics.length) {
-      scaledSegments = [];
-      workoutTotalSec = 0;
-      return;
-    }
-
-    const ftpForScaling = currentFtp || DEFAULT_FTP;
-
-    const {scaledSegments: scaled, totalSec} = computeScaledSegments(
-      segmentsForMetrics,
-      ftpForScaling
-    );
-    scaledSegments = scaled;
-    workoutTotalSec = totalSec;
   }
 
+  /**
+   * Returns current segment + target power at absolute time tSec.
+   * Uses canonicalWorkout.rawSegments directly; no persistent scaled structure.
+   */
   function getCurrentSegmentAtTime(tSec) {
-    if (!scaledSegments.length) return {segment: null, target: null};
-    const clampedT = Math.min(Math.max(0, tSec), workoutTotalSec);
-    let seg = scaledSegments[currentIntervalIndex];
-
-    if (!seg || clampedT < seg.startTimeSec || clampedT >= seg.endTimeSec) {
-      seg = scaledSegments.find(
-        (s) => clampedT >= s.startTimeSec && clampedT < s.endTimeSec
-      );
-      if (seg) currentIntervalIndex = scaledSegments.indexOf(seg);
+    if (!canonicalWorkout || !workoutTotalSec) {
+      return {segment: null, target: null, index: -1};
     }
 
-    if (!seg) return {segment: null, target: null};
+    const ftp = currentFtp || DEFAULT_FTP;
+    const t = Math.min(Math.max(0, tSec), workoutTotalSec);
+    const raws = canonicalWorkout.rawSegments;
 
-    const rel = (clampedT - seg.startTimeSec) / seg.durationSec;
-    const target =
-      seg.targetWattsStart +
-      (seg.targetWattsEnd - seg.targetWattsStart) *
-      Math.min(1, Math.max(0, rel));
+    let acc = 0;
+    for (let i = 0; i < raws.length; i++) {
+      const [minutes, startPct, endPct] = raws[i];
+      const dur = Math.max(1, Math.round((minutes || 0) * 60));
+      const start = acc;
+      const end = acc + dur;
 
-    return {segment: seg, target: Math.round(target)};
+      if (t < end) {
+        const pStartRel = (startPct || 0) / 100;
+        const pEndRel = (endPct != null ? endPct : startPct || 0) / 100;
+        const rel = (t - start) / dur;
+        const startW = pStartRel * ftp;
+        const endW = pEndRel * ftp;
+        const target = Math.round(
+          startW + (endW - startW) * Math.min(1, Math.max(0, rel))
+        );
+
+        const segment = {
+          durationSec: dur,
+          startTimeSec: start,
+          endTimeSec: end,
+          pStartRel,
+          pEndRel,
+        };
+
+        currentIntervalIndex = i;
+        return {segment, target, index: i};
+      }
+
+      acc = end;
+    }
+
+    return {segment: null, target: null, index: -1};
   }
 
   function getCurrentTargetPower() {
     if (mode === "erg") return manualErgTarget;
     if (mode === "resistance") return null;
-    if (!scaledSegments.length) return null;
+    if (!canonicalWorkout) return null;
     const t = workoutRunning || elapsedSec > 0 ? elapsedSec : 0;
     const {target} = getCurrentSegmentAtTime(t);
     return target;
@@ -132,16 +129,11 @@ function createWorkoutEngine() {
 
   function desiredTrainerState() {
     if (mode === "workout") {
-      const target = getCurrentTargetPower();
-      if (target == null) return null;
-      return {kind: "erg", value: target};
+      const value = getCurrentTargetPower();
+      return value == null ? null : {kind: "erg", value};
     }
-    if (mode === "erg") {
-      return {kind: "erg", value: manualErgTarget};
-    }
-    if (mode === "resistance") {
-      return {kind: "resistance", value: manualResistance};
-    }
+    if (mode === "erg") return {kind: "erg", value: manualErgTarget};
+    if (mode === "resistance") return {kind: "resistance", value: manualResistance};
     return null;
   }
 
@@ -152,6 +144,7 @@ function createWorkoutEngine() {
   }
 
   // --------- persistence ---------
+
   function scheduleSaveActiveState() {
     if (saveStateTimer) return;
     saveStateTimer = setTimeout(() => {
@@ -161,7 +154,7 @@ function createWorkoutEngine() {
   }
 
   function persistActiveState() {
-    const state = {
+    saveActiveState({
       canonicalWorkout,
       currentFtp,
       mode,
@@ -174,11 +167,8 @@ function createWorkoutEngine() {
       liveSamples,
       zeroPowerSeconds,
       autoPauseDisabledUntilSec,
-      workoutStartedAt: workoutStartedAt
-        ? workoutStartedAt.toISOString()
-        : null,
-    };
-    saveActiveState(state);
+      workoutStartedAt: workoutStartedAt ? workoutStartedAt.toISOString() : null,
+    });
   }
 
   async function saveWorkoutFile() {
@@ -206,9 +196,7 @@ function createWorkoutEngine() {
         workoutName: canonicalWorkout.workoutTitle,
         fileName: canonicalWorkout.filename,
         ftpUsed: currentFtp,
-        startedAt: workoutStartedAt
-          ? workoutStartedAt.toISOString()
-          : null,
+        startedAt: workoutStartedAt ? workoutStartedAt.toISOString() : null,
         endedAt: now.toISOString(),
         totalElapsedSec: elapsedSec,
         modeHistory: "workout",
@@ -216,8 +204,7 @@ function createWorkoutEngine() {
       samples: liveSamples,
     };
 
-    const text = JSON.stringify(payload, null, 2);
-    await writable.write(text);
+    await writable.write(JSON.stringify(payload, null, 2));
     await writable.close();
 
     log(`Workout saved to ${fileName}`);
@@ -230,18 +217,12 @@ function createWorkoutEngine() {
     if (mode !== "workout") return;
     if (workoutRunning || workoutStarting) return;
     if (elapsedSec > 0 || liveSamples.length) return;
-    if (!scaledSegments.length) {
-      if (power >= 75) {
-        log("Auto-start (no segments, power >= 75W).");
-        startWorkout();
-      }
-      return;
-    }
+    if (!canonicalWorkout) return;
 
-    const first = scaledSegments[0];
-    const startTarget =
-      (first && first.targetWattsStart) ||
-      (currentFtp || DEFAULT_FTP) * (first?.pStartRel || 0.5);
+    const [minutes, startPct] = canonicalWorkout.rawSegments[0];
+    const ftp = currentFtp || DEFAULT_FTP;
+    const pStartRel = (startPct || 50) / 100;
+    const startTarget = ftp * pStartRel;
     const threshold = Math.max(75, 0.5 * startTarget);
 
     if (power >= threshold) {
@@ -255,44 +236,27 @@ function createWorkoutEngine() {
   }
 
   function handleIntervalBeep(currentT) {
-    if (!scaledSegments.length) return;
+    if (!canonicalWorkout) return;
 
-    const {segment} = getCurrentSegmentAtTime(currentT);
-    if (!segment) return;
+    const {segment, index} = getCurrentSegmentAtTime(currentT);
+    if (!segment || index < 0) return;
 
     const ftp = currentFtp || DEFAULT_FTP;
-    const idx = scaledSegments.indexOf(segment);
-    const next =
-      idx >= 0 && idx < scaledSegments.length - 1
-        ? scaledSegments[idx + 1]
-        : null;
+    const raws = canonicalWorkout.rawSegments;
+    const nextRaw = raws[index + 1];
+    if (!nextRaw) return;
 
-    if (!next || !ftp) return;
-
-    const currEnd =
-      segment.targetWattsEnd != null
-        ? segment.targetWattsEnd
-        : segment.pEndRel * ftp;
-
-    const nextStart =
-      next.targetWattsStart != null
-        ? next.targetWattsStart
-        : next.pStartRel * ftp;
-
-    if (!currEnd || currEnd <= 0) return;
+    const currEnd = segment.pEndRel * ftp;
+    const nextStartPct = nextRaw[1];
+    const nextStartRel = (nextStartPct || 0) / 100;
+    const nextStart = nextStartRel * ftp;
 
     const diffFrac = Math.abs(nextStart - currEnd) / currEnd;
     if (diffFrac < 0.1) return;
 
-    const secsToEnd = segment.endTimeSec - currentT;
-    const secsToEndInt = Math.round(secsToEnd);
+    const secsToEndInt = Math.round(segment.endTimeSec - currentT);
 
-    const nextTargetPct =
-      next.targetWattsStart != null
-        ? next.targetWattsStart / ftp
-        : next.pStartRel;
-
-    if (diffFrac >= 0.3 && nextTargetPct >= 1.2 && secsToEndInt === 9) {
+    if (diffFrac >= 0.3 && nextStartRel >= 1.2 && secsToEndInt === 9) {
       Beeper.playDangerDanger();
     }
 
@@ -324,16 +288,10 @@ function createWorkoutEngine() {
           const inGrace = elapsedSec < autoPauseDisabledUntilSec;
 
           if (!lastSamplePower || lastSamplePower <= 0) {
-            if (!inGrace) {
-              zeroPowerSeconds++;
-            } else {
-              zeroPowerSeconds = 0;
-            }
-            if (
-              !workoutPaused &&
-              !inGrace &&
-              zeroPowerSeconds >= 1
-            ) {
+            if (!inGrace) zeroPowerSeconds++;
+            else zeroPowerSeconds = 0;
+
+            if (!workoutPaused && !inGrace && zeroPowerSeconds >= 1) {
               log("Auto-pause: power at 0 for 1s.");
               setPaused(true, {showOverlay: true});
             }
@@ -344,9 +302,8 @@ function createWorkoutEngine() {
 
         await sendTrainerState(false);
 
-        const t = elapsedSec;
         liveSamples.push({
-          t,
+          t: elapsedSec,
           power: lastSamplePower,
           hr: lastSampleHr,
           cadence: lastSampleCadence,
@@ -377,10 +334,9 @@ function createWorkoutEngine() {
   }
 
   function stopTicker() {
-    if (workoutTicker) {
-      clearInterval(workoutTicker);
-      workoutTicker = null;
-    }
+    if (!workoutTicker) return;
+    clearInterval(workoutTicker);
+    workoutTicker = null;
   }
 
   // --------- state transitions ---------
@@ -392,26 +348,21 @@ function createWorkoutEngine() {
   function setRunning(running) {
     workoutRunning = running;
     workoutPaused = !running;
-    if (running && !workoutTicker) {
-      startTicker();
-    }
+    if (running && !workoutTicker) startTicker();
     emitStateChanged();
   }
 
   function setPaused(paused, {showOverlay = false} = {}) {
     workoutPaused = paused;
-    if (paused && showOverlay) {
-      Beeper.showPausedOverlay();
-    }
+    if (paused && showOverlay) Beeper.showPausedOverlay();
     emitStateChanged();
   }
 
   function startWorkout() {
-    if (!canonicalWorkout || !scaledSegments.length) {
+    if (!canonicalWorkout) {
       alert("No workout selected. Choose a workout first.");
       return;
     }
-
     if (mode !== "workout") {
       alert("Must be in workout mode to begin workout.");
       return;
@@ -423,11 +374,14 @@ function createWorkoutEngine() {
       Beeper.runStartCountdown(async () => {
         liveSamples = [];
         elapsedSec = 0;
-        intervalElapsedSec = scaledSegments[0]?.durationSec || 0;
+
+        const [minutes] = canonicalWorkout.rawSegments[0];
+        intervalElapsedSec = Math.max(1, Math.round((minutes || 0) * 60));
+
         currentIntervalIndex = 0;
         workoutStartedAt = new Date();
         zeroPowerSeconds = 0;
-        autoPauseDisabledUntilSec = elapsedSec + 15;
+        autoPauseDisabledUntilSec = 15;
 
         workoutStarting = false;
         setRunning(true);
@@ -480,7 +434,6 @@ function createWorkoutEngine() {
   function handleBikeSample(sample) {
     lastSamplePower = sample.power;
     lastSampleCadence = sample.cadence;
-    // HR from bike if no dedicated HRM: handled by UI or engine; here keep simple:
     if (sample.hrFromBike != null && lastSampleHr == null) {
       lastSampleHr = sample.hrFromBike;
     }
@@ -497,9 +450,7 @@ function createWorkoutEngine() {
 
   function getViewModel() {
     return {
-      // core state
       canonicalWorkout,
-      scaledSegments,
       workoutTotalSec,
       currentFtp,
       mode,
@@ -512,7 +463,6 @@ function createWorkoutEngine() {
       elapsedSec,
       intervalElapsedSec,
       currentIntervalIndex,
-      // samples
       lastSamplePower,
       lastSampleHr,
       lastSampleCadence,
@@ -531,14 +481,12 @@ function createWorkoutEngine() {
 
     BleManager.on("bikeSample", handleBikeSample);
     BleManager.on("hrSample", handleHrSample);
-
     BleManager.init({autoReconnect: true});
 
     const selected = await loadSelectedWorkout();
     if (selected) {
       canonicalWorkout = selected;
-      // currentFtp is independent of the selection; default already set.
-      rebuildScaledSegments();
+      recomputeWorkoutTotalSec();
     }
 
     const active = await loadActiveState();
@@ -556,13 +504,12 @@ function createWorkoutEngine() {
       currentIntervalIndex = active.currentIntervalIndex || 0;
       liveSamples = active.liveSamples || [];
       zeroPowerSeconds = active.zeroPowerSeconds || 0;
-      autoPauseDisabledUntilSec =
-        active.autoPauseDisabledUntilSec || 0;
+      autoPauseDisabledUntilSec = active.autoPauseDisabledUntilSec || 0;
       workoutStartedAt = active.workoutStartedAt
         ? new Date(active.workoutStartedAt)
         : null;
 
-      rebuildScaledSegments();
+      recomputeWorkoutTotalSec();
     }
 
     if (workoutRunning) {
@@ -574,14 +521,11 @@ function createWorkoutEngine() {
   }
 
   return {
-    // lifecycle
     init,
     getViewModel,
 
-    // state change
     setMode(newMode) {
-      if (newMode === mode) return;
-      if (workoutStarting) return;
+      if (newMode === mode || workoutStarting) return;
       mode = newMode;
       scheduleSaveActiveState();
       sendTrainerState(true).catch((err) =>
@@ -589,32 +533,32 @@ function createWorkoutEngine() {
       );
       emitStateChanged();
     },
+
     setFtp(newFtp) {
       currentFtp = newFtp || DEFAULT_FTP;
-      rebuildScaledSegments();
       scheduleSaveActiveState();
       sendTrainerState(true).catch((err) =>
         log("Trainer state send after FTP change failed: " + err)
       );
       emitStateChanged();
     },
+
     adjustManualErg(delta) {
       manualErgTarget = Math.max(50, Math.min(1500, manualErgTarget + delta));
       scheduleSaveActiveState();
       sendTrainerState(true).catch(() => {});
       emitStateChanged();
     },
+
     adjustManualResistance(delta) {
       manualResistance = Math.max(0, Math.min(100, manualResistance + delta));
       scheduleSaveActiveState();
       sendTrainerState(true).catch(() => {});
       emitStateChanged();
     },
+
     /**
-     * Accept a CanonicalWorkout from the picker / builder and
-     * keep it as the internal representation.
-     *
-     * @param {CanonicalWorkout} canonical
+     * Accept a CanonicalWorkout from the picker / builder.
      */
     setWorkoutFromPicker(canonical) {
       if (!canonical || !Array.isArray(canonical.rawSegments)) {
@@ -624,31 +568,25 @@ function createWorkoutEngine() {
 
       canonicalWorkout = canonical;
 
-      // Ensure FTP is at least DEFAULT_FTP, but do not read or store ftpAtSelection.
       if (!currentFtp || !Number.isFinite(currentFtp)) {
         currentFtp = DEFAULT_FTP;
       }
 
-      // Reset engine state
       elapsedSec = 0;
       currentIntervalIndex = 0;
       liveSamples = [];
       zeroPowerSeconds = 0;
       autoPauseDisabledUntilSec = 0;
 
-      // Rebuild scaled segments from the new canonical workout
-      rebuildScaledSegments();
+      recomputeWorkoutTotalSec();
 
-      // Clear any persisted "active workout" because we're switching
       clearActiveState();
       emitStateChanged();
     },
 
-    // BLE updates
     handleBikeSample,
     handleHrSample,
 
-    // control
     startWorkout,
     endWorkout,
   };
