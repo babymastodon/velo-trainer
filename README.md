@@ -73,7 +73,7 @@ To install:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/selector-dark.png">
-  <img alt="Workout Selector Interface" src="docs/screenshots/selector.png">
+  <img alt="Workout Selector Interface" src="docs/screenshots/selector-light.png">
 </picture>
 
 ## Platform support
