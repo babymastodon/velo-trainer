@@ -22,8 +22,6 @@ const PRECACHE_URLS = [
   "./zwo.js",
   "./scrapers.js",
   "./settings.js",
-  "./content.js",
-  "./background.js",
 
   // Styles
   "./workout-base.css",
@@ -32,7 +30,6 @@ const PRECACHE_URLS = [
 
   // PWA bits
   "./velodrive.webmanifest",
-  "./manifest.json",
 
   // Icons
   "./icons/logo_sq.svg",
@@ -43,12 +40,6 @@ const PRECACHE_URLS = [
   "./icons/icon128.png",
   "./icons/icon192.png",
   "./icons/icon512.png",
-
-  // Screenshots (optional)
-  "./screenshots/hero.png",
-  "./screenshots/hero-dark.png",
-  "./screenshots/selector.png",
-  "./screenshots/selector-dark.png"
 ];
 
 const OFFLINE_FALLBACK_PAGE = "./index.html";
