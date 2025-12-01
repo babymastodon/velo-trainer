@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.svg" alt="VeloDrive logo" height="128">
+  <img src="docs/icons/logo.svg" alt="VeloDrive logo" height="128">
 </p>
 
 # VeloDrive
@@ -9,8 +9,8 @@ VeloDrive is a lightweight Chrome extension / PWA that helps you build your own 
 No backend. No accounts. No dependencies. Just your browser, your trainer, and your workouts.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.png">
-  <img alt="Workout Interface" src="docs/hero.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.png">
+  <img alt="Workout Interface" src="docs/screenshots/hero.png">
 </picture>
 
 
@@ -57,8 +57,8 @@ A countdown begins, ERG targets are applied, and the chart + metrics update in r
 When finished, a JSON file with your entire ride is written to your history folder.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/selector-dark.png">
-  <img alt="Workout Selector Interface" src="docs/selector.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/selector-dark.png">
+  <img alt="Workout Selector Interface" src="docs/screenshots/selector.png">
 </picture>
 
 ## Supported Platforms
