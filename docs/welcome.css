@@ -276,119 +276,16 @@
   display: inline-block;
 }
 
-/* Icon-only slides (splash + get-started) */
+/* Icon-only slide (splash) */
 
 .welcome-slide--icon-only .welcome-main {
   max-width: 82vw;
 }
 
-/* Get started icon row */
-
-.welcome-icon-row {
-  display: none;
-  width: min(1100px, 92vw);
-  justify-content: center;
-  gap: 20px;
-  margin: 0 auto;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.welcome-icon-card {
-  flex: 1 1 220px;
-  min-width: 0;
-  max-width: 240px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  min-height: 220px;
-  cursor: pointer;
-  border-radius: 18px;
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--surface) 92%, transparent),
-    color-mix(in srgb, var(--surface) 86%, transparent)
-  );
-  transition: transform 140ms ease, box-shadow 200ms ease, background 200ms ease;
-  text-align: center;
-}
-
-.welcome-icon-card:focus {
-  outline: none;
-}
-
-.welcome-icon-card:hover {
-  transform: translateY(-2px);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-}
-
-.welcome-icon-card.is-active,
-.welcome-icon-card:focus-visible {
-  transform: translateY(-3px);
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--surface-elevated) 94%, transparent),
-    color-mix(in srgb, var(--surface-elevated) 88%, transparent)
-  );
-  box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.12);
-}
-
-.welcome-icon-circle {
-  width: 120px;
-  height: 120px;
-  border-radius: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--surface) 92%, transparent),
-    color-mix(in srgb, var(--surface-elevated) 88%, transparent)
-  );
-  transition: transform 150ms ease, box-shadow 150ms ease,
-    background 150ms ease, border-color 150ms ease;
-}
-
-.welcome-icon-card.is-active .welcome-icon-circle,
-.welcome-icon-card:focus-visible .welcome-icon-circle {
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--surface-elevated) 90%, transparent),
-    color-mix(in srgb, var(--surface-elevated) 84%, transparent)
-  );
-}
-
-.welcome-icon-circle svg {
-  width: 64px;
-  height: 64px;
-  display: block;
-  stroke: var(--text-main);
-  fill: none;
-  stroke-width: 1.4;
-}
-
-.welcome-icon-label {
-  font-size: 18px;
-  /* larger, consistent with body */
-  text-align: center;
-  color: var(--text-main);
-}
-
-/* Detail text under icons (overlay, no layout reflow) */
-
-.welcome-step-detail {
-  display: none;
-}
-
 .welcome-overlay--splash-only .welcome-nav,
 .welcome-overlay--splash-only .welcome-close-btn,
 .welcome-overlay--splash-only .welcome-header,
-.welcome-overlay--splash-only .welcome-body,
-.welcome-overlay--splash-only .welcome-step-detail,
-.welcome-overlay--splash-only .welcome-icon-row {
+.welcome-overlay--splash-only .welcome-body {
   display: none !important;
 }
 
@@ -447,30 +344,5 @@ body.welcome-active .bottom-nav {
   .welcome-logo {
     max-width: min(32vh, 32vw);
     max-height: min(32vh, 32vw);
-  }
-
-  .welcome-icon-row {
-    max-width: 100%;
-    gap: 8px;
-  }
-
-  .welcome-icon-circle {
-    width: 102px;
-    height: 102px;
-  }
-
-  .welcome-icon-circle svg {
-    width: 48px;
-    height: 48px;
-  }
-
-  .welcome-icon-label {
-    font-size: 16px;
-  }
-
-  .welcome-step-detail {
-    font-size: 16px;
-    max-width: 96vw;
-    bottom: 22px;
   }
 }

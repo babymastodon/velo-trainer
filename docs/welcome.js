@@ -46,25 +46,7 @@ const SLIDES = [
     videoLight: "media/welcome-workouts-light.webm",
     videoDark: "media/welcome-workouts-dark.webm",
   },
-  {
-    id: "get-started",
-    kind: "get-started", // icon row, no video, detail on hover
-    title: "Set up your first ride",
-    bodyLines: [], // details appear below via step detail
-    videoLight: null,
-    videoDark: null,
-  },
 ];
-
-const STEP_DETAILS = {
-  folder:
-    "Pick a folder where VeloDrive will store workouts. Install the Web App for offline access.",
-  trainer:
-    "Pair your FTMS trainer and heart-rate monitor. You may need to enable Bluetooth in Google Chrome.",
-  workout:
-    "Import workout files from TrainerRoad, TrainerDay, or WhatsOnZwift.",
-};
-const STEP_KEYS = ["folder", "trainer", "workout"];
 
 function getCurrentColorScheme() {
   if (!window.matchMedia) return "light";
@@ -80,8 +62,6 @@ export function initWelcomeTour(options = {}) {
   const bodyEl = document.getElementById("welcomeBody");
   const videoEl = document.getElementById("welcomeVideo");
   const logoEl = document.getElementById("welcomeLogo");
-  const iconRowEl = document.getElementById("welcomeIconRow");
-  const stepDetailEl = document.getElementById("welcomeStepDetail");
 
   const prevBtn = document.getElementById("welcomePrevBtn");
   const nextBtn = document.getElementById("welcomeNextBtn");
@@ -90,22 +70,13 @@ export function initWelcomeTour(options = {}) {
     ? overlay.querySelector(".welcome-slide")
     : null;
 
-  const stepFolderCard = document.getElementById("welcomeStepFolder");
-  const stepTrainerCard = document.getElementById("welcomeStepTrainer");
-  const stepWorkoutCard = document.getElementById("welcomeStepWorkout");
-
   if (
     !overlay ||
     !titleEl ||
     !bodyEl ||
     !videoEl ||
     !logoEl ||
-    !iconRowEl ||
-    !stepDetailEl ||
-    !slideContainer ||
-    !stepFolderCard ||
-    !stepTrainerCard ||
-    !stepWorkoutCard
+    !slideContainer
   ) {
     console.warn("[Welcome] Required DOM elements not found; tour disabled.");
     return {
@@ -122,7 +93,6 @@ export function initWelcomeTour(options = {}) {
   let scheme = getCurrentColorScheme();
   let currentMode = "full"; // "full" | "splash"
   let autoCloseTimer = null;
-  let activeStepIndex = 0;
 
   const visibilityCb =
     typeof onVisibilityChanged === "function" ? onVisibilityChanged : null;
@@ -162,7 +132,6 @@ export function initWelcomeTour(options = {}) {
   function hideAllMedia() {
     logoEl.style.display = "none";
     videoEl.style.display = "none";
-    iconRowEl.style.display = "none";
     videoEl.removeAttribute("src");
     videoEl.load();
   }
@@ -170,12 +139,6 @@ export function initWelcomeTour(options = {}) {
   function showSplashLogo() {
     hideAllMedia();
     logoEl.style.display = "block";
-  }
-
-  function showGetStartedIcons() {
-    hideAllMedia();
-    iconRowEl.style.display = "flex";
-    setActiveStep(activeStepIndex || 0);
   }
 
   function showVideoForSlide(slide) {
@@ -188,7 +151,6 @@ export function initWelcomeTour(options = {}) {
     const src = isDark ? slide.videoDark : slide.videoLight;
 
     logoEl.style.display = "none";
-    iconRowEl.style.display = "none";
     videoEl.style.display = "block";
 
     if (videoEl.getAttribute("src") === src) {
@@ -208,8 +170,6 @@ export function initWelcomeTour(options = {}) {
   function updateMediaForSlide(slide) {
     if (slide.kind === "video") {
       showVideoForSlide(slide);
-    } else if (slide.kind === "get-started") {
-      showGetStartedIcons();
     } else {
       // splash / logo-only
       showSplashLogo();
@@ -220,7 +180,7 @@ export function initWelcomeTour(options = {}) {
     slideContainer.classList.toggle("welcome-slide--splash", slide.kind === "splash");
     slideContainer.classList.toggle(
       "welcome-slide--icon-only",
-      slide.kind === "splash" || slide.kind === "get-started"
+      slide.kind === "splash"
     );
   }
 
@@ -232,12 +192,7 @@ export function initWelcomeTour(options = {}) {
 
     titleEl.textContent = slide.title;
 
-    if (slide.kind === "get-started") {
-      setActiveStep(activeStepIndex || 0);
-    } else {
-      bodyEl.innerHTML = computeBodyHtml(slide.bodyLines);
-      setActiveStep(0, {suppressDetail: true});
-    }
+    bodyEl.innerHTML = computeBodyHtml(slide.bodyLines);
 
     applySlideClasses(slide);
     updateMediaForSlide(slide);
@@ -291,10 +246,6 @@ export function initWelcomeTour(options = {}) {
     };
 
     slideContainer.addEventListener("transitionend", handleOutEnd);
-  }
-
-  function isGetStartedSlide(index = currentIndex) {
-    return SLIDES[index] && SLIDES[index].id === "get-started";
   }
 
   function closeOverlay() {
@@ -362,14 +313,6 @@ export function initWelcomeTour(options = {}) {
 
   function goToNext() {
     if (currentMode === "splash") return;
-    if (isGetStartedSlide()) {
-      if (activeStepIndex < STEP_KEYS.length - 1) {
-        setActiveStep(activeStepIndex + 1);
-        return;
-      }
-      closeOverlay();
-      return;
-    }
     if (currentIndex >= SLIDES.length - 1) {
       closeOverlay();
       return;
@@ -380,10 +323,6 @@ export function initWelcomeTour(options = {}) {
 
   function goToPrev() {
     if (currentMode === "splash") return;
-    if (isGetStartedSlide() && activeStepIndex > 0) {
-      setActiveStep(activeStepIndex - 1);
-      return;
-    }
     if (currentIndex <= 0) return;
     const prevIndex = currentIndex - 1;
     animateSlideChange(prevIndex, "prev");
@@ -398,11 +337,10 @@ export function initWelcomeTour(options = {}) {
 
     const target = event.target;
 
-    // Ignore clicks on controls or get-started icons
+    // Ignore clicks on controls
     if (
       target.closest(".welcome-nav") ||
-      target.closest(".welcome-close-btn") ||
-      target.closest(".welcome-icon-card")
+      target.closest(".welcome-close-btn")
     ) {
       return;
     }
@@ -487,62 +425,6 @@ export function initWelcomeTour(options = {}) {
       }
     });
   }
-
-  // Hover / focus details for get-started steps
-  function showStepDetail(stepKey) {
-    const text = STEP_DETAILS[stepKey];
-    if (!text) return;
-    if (isGetStartedSlide()) {
-      bodyEl.innerHTML = computeBodyHtml([text]);
-    }
-  }
-
-  function setActiveStep(index, options = {}) {
-    const {suppressDetail = false} = options;
-    const clamped = Math.max(0, Math.min(STEP_KEYS.length - 1, index));
-    activeStepIndex = clamped;
-    const els = [stepFolderCard, stepTrainerCard, stepWorkoutCard];
-    els.forEach((el, idx) => {
-      if (!el) return;
-      el.classList.toggle("is-active", idx === clamped);
-    });
-    if (!suppressDetail && isGetStartedSlide()) {
-      showStepDetail(STEP_KEYS[clamped]);
-    }
-  }
-
-  function wireStepCard(cardEl, stepKey, index) {
-    if (!cardEl) return;
-
-    const activateCard = () => {
-      if (isGetStartedSlide()) {
-        if (index === STEP_KEYS.length - 1 && activeStepIndex === index) {
-          closeOverlay();
-        } else {
-          setActiveStep(index);
-        }
-      } else {
-        setActiveStep(index);
-      }
-    };
-
-    cardEl.addEventListener("click", (e) => {
-      e.stopPropagation();
-      activateCard();
-    });
-
-    cardEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        e.stopPropagation();
-        activateCard();
-      }
-    });
-  }
-
-  wireStepCard(stepFolderCard, "folder", 0);
-  wireStepCard(stepTrainerCard, "trainer", 1);
-  wireStepCard(stepWorkoutCard, "workout", 2);
 
   // Initial render (hidden until open())
   renderSlide(0);
