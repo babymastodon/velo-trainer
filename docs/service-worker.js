@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -22,11 +22,13 @@ const PRECACHE_URLS = [
   "./zwo.js",
   "./scrapers.js",
   "./settings.js",
+  "./welcome.js",
 
   // Styles
   "./workout-base.css",
   "./workout-picker.css",
   "./settings.css",
+  "./welcome.css",
 
   // PWA bits
   "./velodrive.webmanifest",
@@ -108,4 +110,3 @@ self.addEventListener("fetch", event => {
     })
   );
 });
-
