@@ -72,12 +72,10 @@
   border: 1px solid var(--border-subtle);
   background: var(--surface);
   color: var(--text-muted);
-  max-width: 360px;
+  max-width: 720px;
   min-width: 160px;
   box-sizing: border-box;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
 }
 
 .builder-status--ok {
