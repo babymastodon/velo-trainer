@@ -209,7 +209,7 @@
 
 .settings-button {
   height: var(--nav-control-height);
-  padding: 0 10px;
+  padding: 0 var(--button-padding-x);
   font-size: var(--font-size-base);
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
