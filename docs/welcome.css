@@ -121,6 +121,12 @@
   cursor: pointer;
   z-index: 61;
   /* above slide content, still under overlay root */
+  transition: opacity 160ms ease;
+}
+
+.welcome-overlay:not(.welcome-overlay--visible) .welcome-nav {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .welcome-nav-prev {
