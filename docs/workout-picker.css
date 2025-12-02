@@ -19,20 +19,24 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
-  padding: 10px 12px;
+  padding: 18px;
   color: var(--text-main);
   font-size: 14px;
+  line-height: 1.5;
   /* everything inside defaults to 14px */
 }
 
 .workout-picker-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 6px;
   font-size: 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  padding-right: 48px; /* leave room for the absolute close button */
+  padding-bottom: 12px;
 }
 
 .workout-picker-title {
@@ -46,28 +50,30 @@
 .workout-picker-header-main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
 
 .workout-picker-controls {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
   justify-content: flex-end;
   min-width: 0;
+  width: auto;
 }
 
 .workout-picker-controls input[type="search"] {
-  padding: 6px 10px;
+  padding: 6px 12px;
   font-size: 14px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   outline: none;
   background: var(--surface);
   color: var(--text-main);
-  min-width: 0;
-  min-width: 220px;
+  min-width: 160px;
+  flex: 0 1 220px;
+  width: 220px;
 }
 
 .workout-picker-controls select {
@@ -75,8 +81,8 @@
   -webkit-appearance: none;
   -moz-appearance: none;
 
-  padding: 6px 10px;
-  padding-right: 26px;
+  padding: 6px 12px;
+  padding-right: 30px;
   font-size: 14px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
@@ -87,7 +93,7 @@
 
   background-image: var(--select-arrow);
   background-repeat: no-repeat;
-  background-position: right 10px center;
+  background-position: right 12px center;
   background-size: 9px 5px;
 }
 
@@ -112,7 +118,7 @@
 .workout-picker-summary {
   font-size: 14px;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .workout-picker-table-wrapper {
@@ -121,6 +127,7 @@
   overflow: auto;
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
+  overscroll-behavior: contain;
 }
 
 .workout-picker-table {
@@ -134,11 +141,12 @@
   top: 0;
   background: var(--surface);
   z-index: 1;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .workout-picker-table th,
 .workout-picker-table td {
-  padding: 4px 6px;
+  padding: 6px;
   border-bottom: 1px solid var(--border-subtle);
   text-align: left;
   white-space: nowrap;
@@ -175,6 +183,10 @@
   content: "▼";
 }
 
+.workout-picker-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .picker-row {
   cursor: pointer;
   transition: background-color 0.12s ease, transform 0.06s ease;
@@ -197,8 +209,8 @@
 .picker-expanded-row td {
   background: rgba(0, 0, 0, 0.02);
   white-space: normal;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -209,10 +221,10 @@
 
 .picker-expanded {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: flex-start;
   flex-wrap: wrap;
-  padding: 4px 2px;
+  padding: 12px;
 }
 
 .picker-graph-svg {
@@ -227,7 +239,7 @@
   /* builds on existing .picker-expanded flex */
   flex-direction: column;
   /* override row layout */
-  gap: 8px;
+  gap: 12px;
 }
 
 /* Header: title on the first column, buttons grouped on the right */
@@ -235,8 +247,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
-  column-gap: 8px;
-  row-gap: 4px;
+  column-gap: 12px;
+  row-gap: 6px;
   width: 100%;
 }
 
@@ -257,13 +269,13 @@
 .picker-expanded-main {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
   align-items: flex-start;
 }
 
 .picker-expanded-main-left,
 .picker-expanded-main-right {
-  margin-top: 8px;
+  margin-top: 12px;
   flex: 1 1 280px;
   /* side-by-side on wide, stack when narrow */
   min-width: 0;
@@ -291,7 +303,7 @@
   min-width: 200px;
   font-size: 14px;
   line-height: 1.4;
-  padding-left: 4px;
+  padding-left: 6px;
 }
 
 .picker-detail-empty {
@@ -302,7 +314,7 @@
   position: absolute;
   pointer-events: none;
   font-size: 14px;
-  padding: 4px 6px;
+  padding: 6px;
   border-radius: 4px;
   background: #ffffff;
   color: #666666;
@@ -322,12 +334,12 @@
 }
 
 .picker-footer {
-  margin-top: 4px;
+  margin-top: 12px;
   font-size: 14px;
   color: var(--text-muted);
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -348,6 +360,9 @@
   padding: 0;
   color: var(--text-main);
   flex-shrink: 0;
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 
 .picker-close-btn svg {
@@ -374,7 +389,7 @@
   border: none;
   border-radius: 4px;
   height: var(--nav-control-height);
-  padding: 0 14px;
+  padding: 0 12px;
   font-size: 14px;
   cursor: pointer;
   background: #d87d73;
@@ -415,7 +430,7 @@
   .workout-picker-modal {
     width: 96vw;
     height: 80vh;
-    padding: 8px;
+    padding: 12px;
   }
 
   .picker-graph {
@@ -426,12 +441,20 @@
   .picker-detail {
     flex: 1 1 100%;
     padding-left: 0;
-    margin-top: 4px;
+    margin-top: 6px;
   }
 
   .workout-picker-controls {
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1100px) {
+  .workout-picker-header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding-right: 48px;
   }
 }
 
@@ -444,7 +467,7 @@
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   background: radial-gradient(circle at top, rgba(255, 255, 255, 0.2), transparent 55%);
   pointer-events: none;
   text-align: center;
@@ -460,7 +483,7 @@
   border-radius: 4px;
   border: none;
   height: var(--nav-control-height);
-  padding: 0 14px;
+  padding: 0 12px;
   font-size: 14px;
   background: #d87d73;
   color: #ffffff;
@@ -477,7 +500,7 @@
   border: none;
   border-radius: 4px;
   height: var(--nav-control-height);
-  padding: 0 10px 0 6px;
+  padding: 0 12px 0 6px;
   font-size: 14px;
   cursor: pointer;
   background: #d87d73;
@@ -487,7 +510,7 @@
   justify-content: center;
   box-shadow: none;
   flex-shrink: 0;
-  gap: 4px;
+  gap: 6px;
 }
 
 .picker-add-btn:hover {
@@ -624,7 +647,8 @@
   min-width: 80px;
   border-radius: 4px;
   border: 1px solid var(--border-subtle);
-  padding: 4px 10px;
+  height: var(--nav-control-height);
+  padding: 0 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;

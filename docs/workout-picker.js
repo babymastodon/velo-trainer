@@ -582,7 +582,7 @@ function createWorkoutPicker(config) {
         const descCol = document.createElement("div");
         descCol.className = "picker-expanded-main-right";
         descCol.style.fontSize = "14px";
-        descCol.style.lineHeight = "1.4";
+        descCol.style.lineHeight = "1.6";
 
         if (description && description.trim()) {
           descCol.innerHTML = description.replace(/\n/g, "<br>");
