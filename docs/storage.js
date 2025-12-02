@@ -313,6 +313,10 @@ export async function loadWorkoutBuilderState() {
   return getSetting(STORAGE_WORKOUT_BUILDER_STATE, null);
 }
 
+export async function clearWorkoutBuilderState() {
+  return removeSetting(STORAGE_WORKOUT_BUILDER_STATE);
+}
+
 // --------------------------- Root Directory Picker ---------------------------
 
 /**

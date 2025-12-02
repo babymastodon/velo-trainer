@@ -703,6 +703,13 @@ function createWorkoutPicker(config) {
     hasUnsavedBuilderChanges = isDirty;
   }
 
+  async function clearPersistedBuilderState() {
+    if (workoutBuilder &&
+      typeof workoutBuilder.clearPersistedState === "function") {
+      await workoutBuilder.clearPersistedState();
+    }
+  }
+
   function resetHeaderStatus() {
     updateBuilderStatus({text: "", tone: "neutral"});
     if (builderStatusEl) {
@@ -1012,14 +1019,27 @@ function createWorkoutPicker(config) {
     }
   }
 
-  function startBuilderFromScratch() {
+  async function startBuilderFromScratch() {
     if (!workoutBuilder) return;
     enterBuilderMode({title: "New Workout"});
     suppressBuilderDirty = true;
-    workoutBuilder.clearState();
-    workoutBuilder.refreshLayout();
+
+    let restored = false;
+    if (typeof workoutBuilder.restorePersistedStateOrDefault === "function") {
+      restored = await workoutBuilder.restorePersistedStateOrDefault();
+    } else {
+      workoutBuilder.clearState();
+      workoutBuilder.refreshLayout();
+    }
+
     suppressBuilderDirty = false;
-    setBuilderBaselineFromCurrent();
+
+    if (restored) {
+      builderBaseline = null;
+      hasUnsavedBuilderChanges = true;
+    } else {
+      setBuilderBaselineFromCurrent();
+    }
   }
 
   function movePickerExpansion(delta) {
@@ -1047,7 +1067,7 @@ function createWorkoutPicker(config) {
       });
       if (!ok) return;
     }
-
+    await clearPersistedBuilderState();
     exitBuilderMode();
     exitImportMode();
   }
@@ -1312,8 +1332,10 @@ function createWorkoutPicker(config) {
       hasUnsavedBuilderChanges = false;
       builderBaseline = cloneCanonicalWorkout(canonical);
 
+      await clearPersistedBuilderState();
+
       if (reopenAfterSave) {
-        workoutBuilder.clearState();
+        workoutBuilder.clearState({persist: false});
         open(canonical.workoutTitle);
       }
 
@@ -1427,6 +1449,14 @@ function createWorkoutPicker(config) {
     );
 
     if (!wantsSave) {
+      if (workoutBuilder) {
+        suppressBuilderDirty = true;
+        await clearPersistedBuilderState();
+        workoutBuilder.clearState({persist: false});
+        suppressBuilderDirty = false;
+        setBuilderBaselineFromCurrent();
+        hasUnsavedBuilderChanges = false;
+      }
       return true;
     }
 
@@ -1494,6 +1524,7 @@ function createWorkoutPicker(config) {
       if (!ok) return;
     }
 
+    await clearPersistedBuilderState();
     exitBuilderMode();
     exitImportMode();
 
@@ -1560,9 +1591,9 @@ function createWorkoutPicker(config) {
   }
 
   if (importScratchBtn) {
-    importScratchBtn.addEventListener("click", (e) => {
+    importScratchBtn.addEventListener("click", async (e) => {
       e.preventDefault();
-      startBuilderFromScratch();
+      await startBuilderFromScratch();
     });
   }
 

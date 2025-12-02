@@ -6,8 +6,9 @@ import {
   inferZoneFromSegments,
 } from "./workout-metrics.js";
 import {
-  saveWorkoutBuilderState,
+  clearWorkoutBuilderState,
   loadWorkoutBuilderState,
+  saveWorkoutBuilderState,
 } from "./storage.js";
 import {
   parseZwoSnippet,
@@ -36,6 +37,7 @@ export function createWorkoutBuilder(options) {
   let currentErrors = [];
   let currentMetrics = null;
   let currentZone = null;
+  let persistedState = null;
   const statusTarget = statusMessageEl || null;
 
   function setStatusMessage(text, tone = "neutral") {
@@ -267,29 +269,27 @@ export function createWorkoutBuilder(options) {
         if (
           saved &&
           typeof saved === "object" &&
+          saved._shouldRestore !== false &&
           Array.isArray(saved.rawSegments)
         ) {
-          nameField.input.value = saved.workoutTitle || "";
-          sourceField.input.value = saved.source || "";
-          descField.textarea.value = saved.description || "";
-          codeTextarea.value = segmentsToZwoSnippet(saved.rawSegments);
-          // hydrate URL field from saved CanonicalWorkout
-          urlInput.value = saved.sourceURL || "";
+          persistedState = saved;
+          hydrateFromState(saved, {skipPersist: true});
         }
       }
     } catch (e) {
       console.warn("[WorkoutBuilder] Failed to load saved state:", e);
     }
     if (!codeTextarea.value.trim()) {
-      setDefaultSnippet();
+      clearState({persist: true});
+    } else {
+      refreshLayout({skipPersist: true});
     }
-    refreshLayout();
   })();
 
   // ---------- Public API ----------
 
-  function refreshLayout() {
-    handleAnyChange();
+  function refreshLayout(opts = {}) {
+    handleAnyChange(opts);
     autoGrowTextarea(descField.textarea);
     autoGrowTextarea(codeTextarea);
   }
@@ -315,7 +315,9 @@ export function createWorkoutBuilder(options) {
     return canonical;
   }
 
-  function clearState() {
+  function clearState(options = {}) {
+    const {persist = true} = options;
+
     nameField.input.value = "";
     sourceField.input.value = "";
     descField.textarea.value = "";
@@ -323,7 +325,12 @@ export function createWorkoutBuilder(options) {
     urlInput.value = "";
 
     setDefaultSnippet();
-    refreshLayout();
+    if (!persist) {
+      persistedState = null;
+      refreshLayout({skipPersist: true});
+    } else {
+      refreshLayout();
+    }
   }
 
   /**
@@ -340,13 +347,7 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
-    nameField.input.value = canonical.workoutTitle || "";
-    sourceField.input.value = canonical.source || "";
-    descField.textarea.value = canonical.description || "";
-    codeTextarea.value = segmentsToZwoSnippet(canonical.rawSegments);
-    urlInput.value = canonical.sourceURL || "";
-
-    handleAnyChange();
+    hydrateFromState(canonical);
   }
 
   function validateForSave() {
@@ -434,7 +435,7 @@ export function createWorkoutBuilder(options) {
   }
 
   function handleAnyChange(opts = {}) {
-    const {skipParse = false} = opts;
+    const {skipParse = false, skipPersist = false} = opts;
 
     if (!skipParse) {
       const text = codeTextarea.value || "";
@@ -465,16 +466,22 @@ export function createWorkoutBuilder(options) {
     updateErrorStyling();
     updateErrorHighlights();
 
+    const state = getState();
+
     if (typeof onChange === "function") {
-      onChange(getState());
+      onChange(state);
     }
 
-    try {
-      if (typeof saveWorkoutBuilderState === "function") {
-        saveWorkoutBuilderState(getState());
+    if (!skipPersist) {
+      try {
+        const toSave = {...state, _shouldRestore: true};
+        persistedState = toSave;
+        if (typeof saveWorkoutBuilderState === "function") {
+          saveWorkoutBuilderState(toSave);
+        }
+      } catch (e) {
+        console.warn("[WorkoutBuilder] Failed to save builder state:", e);
       }
-    } catch (e) {
-      console.warn("[WorkoutBuilder] Failed to save builder state:", e);
     }
   }
 
@@ -558,6 +565,49 @@ export function createWorkoutBuilder(options) {
     if (overlapping) {
       setStatusMessage(overlapping.message, "error");
     }
+  }
+
+  async function clearPersistedState() {
+    persistedState = null;
+    try {
+      if (typeof clearWorkoutBuilderState === "function") {
+        await clearWorkoutBuilderState();
+      }
+    } catch (err) {
+      console.warn("[WorkoutBuilder] Failed to clear saved builder state:", err);
+    }
+  }
+
+  function hydrateFromState(state, opts = {}) {
+    const {skipPersist = false} = opts;
+
+    if (!state || !Array.isArray(state.rawSegments)) return;
+
+    nameField.input.value = state.workoutTitle || "";
+    sourceField.input.value = state.source || "";
+    descField.textarea.value = state.description || "";
+    codeTextarea.value = segmentsToZwoSnippet(state.rawSegments);
+    urlInput.value = state.sourceURL || "";
+
+    if (skipPersist) {
+      refreshLayout({skipPersist: true});
+    } else {
+      refreshLayout();
+    }
+  }
+
+  async function restorePersistedStateOrDefault() {
+    if (
+      persistedState &&
+      Array.isArray(persistedState.rawSegments) &&
+      persistedState.rawSegments.length
+    ) {
+      hydrateFromState(persistedState, {skipPersist: true});
+      return true;
+    }
+
+    clearState({persist: true});
+    return false;
   }
 
   // ---------- Small DOM helpers ----------
@@ -777,5 +827,7 @@ export function createWorkoutBuilder(options) {
     refreshLayout,
     validateForSave,
     loadCanonicalWorkout,
+    restorePersistedStateOrDefault,
+    clearPersistedState,
   };
 }
