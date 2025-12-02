@@ -765,7 +765,7 @@
 }
 
 .wb-description-card .wb-field-textarea {
-  min-height: 140px;
+  min-height: 116px;
 }
 
 .wb-field {
@@ -807,7 +807,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .wb-stats-toolbar-row {
@@ -843,7 +843,6 @@
 
 .wb-chart-container {
   width: 100%;
-  padding: 8px 0;
 }
 
 .wb-chart-mini-host {
@@ -858,6 +857,7 @@
 
 .wb-stats-card {
   flex: 0 0 auto;
+  margin: 0;
 }
 
 .wb-toolbar-card {
