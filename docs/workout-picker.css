@@ -749,9 +749,9 @@
 
 .wb-card {
   border-radius: var(--radius);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  padding: 12px;
+  border: none;
+  background: transparent;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -765,7 +765,7 @@
 }
 
 .wb-description-card .wb-field-textarea {
-  min-height: 170px;
+  min-height: 140px;
 }
 
 .wb-field {
@@ -792,7 +792,7 @@
 .wb-field-textarea {
   overflow: hidden;
   resize: none;
-  min-height: 140px;
+  min-height: 100px;
 }
 
 .wb-field-input:focus,
@@ -807,6 +807,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  margin-top: 6px;
 }
 
 .wb-stats-toolbar-row {
@@ -842,6 +843,7 @@
 
 .wb-chart-container {
   width: 100%;
+  padding: 8px 0;
 }
 
 .wb-chart-mini-host {
@@ -855,20 +857,23 @@
 }
 
 .wb-stats-card {
-  flex: 2 1 520px;
+  flex: 0 0 auto;
+  padding-top: 8px;
+  padding-bottom: 4px;
 }
 
 .wb-toolbar-card {
-  flex: 1 1 320px;
-  justify-content: center;
+  flex: 0 0 auto;
+  justify-content: flex-start;
   align-items: flex-end;
+  margin-bottom: 12px;
 }
 
 /* Code toolbar & buttons (same vibe as other buttons) */
 
 .wb-code-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;

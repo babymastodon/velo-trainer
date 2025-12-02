@@ -73,6 +73,7 @@ export function createWorkoutBuilder(options) {
   const nameField = createLabeledInput("Name");
   const sourceField = createLabeledInput("Author / Source");
   const descField = createLabeledTextarea("Description");
+  descField.textarea.placeholder = "Short description, goals, or cues (optional)";
 
   const urlInput = document.createElement("input");
   urlInput.type = "hidden";
@@ -92,23 +93,7 @@ export function createWorkoutBuilder(options) {
   topRow.appendChild(metaCard);
   topRow.appendChild(descCard);
 
-  // Chart
-  const chartCard = document.createElement("div");
-  chartCard.className = "wb-card wb-chart-card";
-
-  const chartContainer = document.createElement("div");
-  chartContainer.className = "wb-chart-container";
-
-  const chartMiniHost = document.createElement("div");
-  chartMiniHost.className = "wb-chart-mini-host";
-
-  chartContainer.appendChild(chartMiniHost);
-  chartCard.appendChild(chartContainer);
-
-  // Stats + toolbar row
-  const statsToolbarRow = document.createElement("div");
-  statsToolbarRow.className = "wb-stats-toolbar-row";
-
+  // Stats (full width)
   const statsCard = document.createElement("div");
   statsCard.className = "wb-card wb-stats-card";
 
@@ -192,11 +177,24 @@ export function createWorkoutBuilder(options) {
       handleAnyChange();
     });
 
-    toolbarButtons.appendChild(btn);
-  });
+  toolbarButtons.appendChild(btn);
+});
 
   toolbar.appendChild(toolbarButtons);
   toolbarCard.appendChild(toolbar);
+
+  // Chart
+  const chartCard = document.createElement("div");
+  chartCard.className = "wb-card wb-chart-card";
+
+  const chartContainer = document.createElement("div");
+  chartContainer.className = "wb-chart-container";
+
+  const chartMiniHost = document.createElement("div");
+  chartMiniHost.className = "wb-chart-mini-host";
+
+  chartContainer.appendChild(chartMiniHost);
+  chartCard.appendChild(chartContainer);
 
   const codeCard = document.createElement("div");
   codeCard.className = "wb-card wb-code-card";
@@ -230,12 +228,10 @@ export function createWorkoutBuilder(options) {
 
   codeCard.appendChild(textareaWrapper);
 
-  statsToolbarRow.appendChild(statsCard);
-  statsToolbarRow.appendChild(toolbarCard);
-
   body.appendChild(topRow);
+  body.appendChild(statsCard);
   body.appendChild(chartCard);
-  body.appendChild(statsToolbarRow);
+  body.appendChild(toolbarCard);
   body.appendChild(codeCard);
   wrapper.appendChild(body);
   rootEl.appendChild(wrapper);
