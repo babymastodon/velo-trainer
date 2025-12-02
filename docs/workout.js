@@ -21,7 +21,7 @@ import {
 } from "./workout-chart.js";
 
 import {DEFAULT_FTP, getAdjustedKjForPicker} from "./workout-metrics.js";
-import {initSettings, addLogLineToSettings} from "./settings.js";
+import {initSettings, addLogLineToSettings, openSettingsModal} from "./settings.js";
 import {
   loadLastScrapedWorkout,
   wasWorkoutJustScraped,
@@ -882,8 +882,12 @@ async function initPage() {
 
   if (bikeConnectBtn) {
     bikeConnectBtn.addEventListener("click", async () => {
-      if (!navigator.bluetooth) {
-        alert("Bluetooth not available in this browser.");
+      const btSupported =
+        navigator.bluetooth &&
+        typeof navigator.bluetooth.getDevices === "function";
+      if (!btSupported) {
+        alert("Bluetooth not available in this browser. Opening settings.");
+        openSettingsModal();
         return;
       }
       try {
@@ -897,8 +901,12 @@ async function initPage() {
 
   if (hrConnectBtn) {
     hrConnectBtn.addEventListener("click", async () => {
-      if (!navigator.bluetooth) {
-        alert("Bluetooth not available in this browser.");
+      const btSupported =
+        navigator.bluetooth &&
+        typeof navigator.bluetooth.getDevices === "function";
+      if (!btSupported) {
+        alert("Bluetooth not available in this browser. Opening settings.");
+        openSettingsModal();
         return;
       }
       try {

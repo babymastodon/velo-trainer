@@ -133,11 +133,6 @@
   padding: 12px;
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: inset 0 -1px 0 var(--border-subtle);
-}
-
-.settings-list .settings-row:last-of-type {
-  box-shadow: none;
 }
 
 .settings-row-main {
@@ -382,18 +377,16 @@
 .settings-help-content {
   font-size: 14px;
   color: var(--text-main);
-  margin-top: 6px;
-  padding: 8px 10px;
+  margin: -4px 0 6px 40px;
+  padding: 10px 12px;
   border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
+  background: var(--accent-soft);
   animation: none;
 }
 
 @media (prefers-color-scheme: dark) {
   .settings-help-content {
-    background: rgba(255, 255, 255, 0.05);
-    border-left-color: var(--border-subtle);
+    background: rgba(255, 255, 255, 0.06);
   }
 }
 
