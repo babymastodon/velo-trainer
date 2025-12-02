@@ -19,7 +19,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
-  padding: 18px;
+  padding: 16px;
   color: var(--text-main);
   font-size: 14px;
   line-height: 1.5;
@@ -32,10 +32,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 0;
   font-size: 14px;
   flex-wrap: nowrap;
-  padding-right: 48px; /* leave room for the absolute close button */
+  padding-right: 46px; /* leave room for the absolute close button */
   padding-bottom: 12px;
 }
 
@@ -50,7 +50,7 @@
 .workout-picker-header-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .workout-picker-controls {
@@ -64,7 +64,7 @@
 }
 
 .workout-picker-controls input[type="search"] {
-  padding: 6px 12px;
+  padding: 8px 12px;
   font-size: 14px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
@@ -74,6 +74,8 @@
   min-width: 160px;
   flex: 0 1 220px;
   width: 220px;
+  height: 30px;
+  box-sizing: border-box;
 }
 
 .workout-picker-controls select {
@@ -81,8 +83,8 @@
   -webkit-appearance: none;
   -moz-appearance: none;
 
-  padding: 6px 12px;
-  padding-right: 30px;
+  padding: 0 12px;
+  padding-right: 28px;
   font-size: 14px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
@@ -90,6 +92,8 @@
   background: var(--surface);
   color: var(--text-main);
   min-width: 0;
+  height: 30px;
+  box-sizing: border-box;
 
   background-image: var(--select-arrow);
   background-repeat: no-repeat;
@@ -128,6 +132,7 @@
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
   overscroll-behavior: contain;
+  margin-top: 16px;
 }
 
 .workout-picker-table {
@@ -146,7 +151,7 @@
 
 .workout-picker-table th,
 .workout-picker-table td {
-  padding: 6px;
+  padding: 4px;
   border-bottom: 1px solid var(--border-subtle);
   text-align: left;
   white-space: nowrap;
@@ -172,7 +177,7 @@
 .workout-picker-table th[data-sort-key]::after {
   content: "";
   font-size: 9px;
-  margin-left: 3px;
+  margin-left: 4px;
 }
 
 .workout-picker-table th.sorted-asc::after {
@@ -209,8 +214,8 @@
 .picker-expanded-row td {
   background: rgba(0, 0, 0, 0.02);
   white-space: normal;
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -248,7 +253,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
   column-gap: 12px;
-  row-gap: 6px;
+  row-gap: 8px;
   width: 100%;
 }
 
@@ -262,7 +267,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
 }
 
 /* Content row: stats (left) + description (right) */
@@ -303,7 +308,7 @@
   min-width: 200px;
   font-size: 14px;
   line-height: 1.4;
-  padding-left: 6px;
+  padding-left: 4px;
 }
 
 .picker-detail-empty {
@@ -314,7 +319,7 @@
   position: absolute;
   pointer-events: none;
   font-size: 14px;
-  padding: 6px;
+  padding: 8px;
   border-radius: 4px;
   background: #ffffff;
   color: #666666;
@@ -339,7 +344,7 @@
   color: var(--text-muted);
   display: flex;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -348,8 +353,8 @@
 }
 
 .picker-close-btn {
-  width: var(--nav-control-height);
-  height: var(--nav-control-height);
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius);
   border: none;
   background: transparent;
@@ -388,7 +393,7 @@
 .select-workout-btn {
   border: none;
   border-radius: 4px;
-  height: var(--nav-control-height);
+  height: 30px;
   padding: 0 12px;
   font-size: 14px;
   cursor: pointer;
@@ -441,7 +446,7 @@
   .picker-detail {
     flex: 1 1 100%;
     padding-left: 0;
-    margin-top: 6px;
+    margin-top: 4px;
   }
 
   .workout-picker-controls {
@@ -453,7 +458,7 @@
 @media (max-width: 1100px) {
   .workout-picker-header {
     flex-wrap: wrap;
-    row-gap: 6px;
+    row-gap: 8px;
     padding-right: 48px;
   }
 }
@@ -482,7 +487,7 @@
   pointer-events: auto;
   border-radius: 4px;
   border: none;
-  height: var(--nav-control-height);
+  height: 30px;
   padding: 0 12px;
   font-size: 14px;
   background: #d87d73;
@@ -499,8 +504,8 @@
 .picker-add-btn {
   border: none;
   border-radius: 4px;
-  height: var(--nav-control-height);
-  padding: 0 12px 0 6px;
+  height: 30px;
+  padding: 0 12px 0 9px; /* icon on left, trim padding slightly */
   font-size: 14px;
   cursor: pointer;
   background: #d87d73;
@@ -510,7 +515,7 @@
   justify-content: center;
   box-shadow: none;
   flex-shrink: 0;
-  gap: 6px;
+  gap: 4px;
 }
 
 .picker-add-btn:hover {
@@ -599,13 +604,13 @@
 .wb-meta-fields {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .wb-field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .wb-field-label {
@@ -618,7 +623,7 @@
   font-size: 14px;
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
-  padding: 4px 6px;
+  padding: 4px 8px;
   background: var(--surface-elevated);
   color: var(--text-main);
 }
@@ -640,14 +645,14 @@
 .wb-stats-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .wb-stat-chip {
   min-width: 80px;
   border-radius: 4px;
   border: 1px solid var(--border-subtle);
-  height: var(--nav-control-height);
+  height: 30px;
   padding: 0 12px;
   display: flex;
   justify-content: space-between;
@@ -692,7 +697,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   font-size: 14px;
 }
@@ -711,8 +716,8 @@
 .wb-code-insert-btn {
   border-radius: 4px;
   border: 1px solid var(--border-subtle);
-  height: var(--nav-control-height);
-  padding: 0 10px 0 6px;
+  height: 30px;
+  padding: 0 12px 0 9px; /* icon on left, trim padding slightly */
   font-size: 14px;
   background: var(--surface-elevated);
   color: var(--text-main);
@@ -755,7 +760,7 @@
 .wb-code-highlights {
   position: absolute;
   inset: 0;
-  padding: 6px;
+  padding: 8px;
   border-radius: var(--radius);
   white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -788,7 +793,7 @@
   background: transparent;
   /* important so highlights show through */
   color: var(--text-main);
-  padding: 6px;
+  padding: 8px;
   resize: none;
   box-sizing: border-box;
   overflow: hidden;
@@ -806,7 +811,7 @@
 
 .wb-code-error-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   font-size: 14px;
 }
 
@@ -847,13 +852,13 @@
 .wb-url-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   font-size: 14px;
 }
 
 .wb-url-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .wb-url-input {
@@ -861,7 +866,7 @@
   min-width: 0;
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
-  padding: 4px 6px;
+  padding: 4px 8px;
   font-size: 14px;
   background: var(--surface-elevated);
   color: var(--text-main);
@@ -871,8 +876,8 @@
   flex-shrink: 0;
   border-radius: 4px;
   border: none;
-  height: var(--nav-control-height);
-  padding: 0 14px;
+  height: 30px;
+  padding: 0 12px;
   font-size: 14px;
   background: #d87d73;
   color: #ffffff;
