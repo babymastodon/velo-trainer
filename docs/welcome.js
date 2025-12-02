@@ -296,14 +296,29 @@ export function initWelcomeTour(options = {}) {
     if (!isOpen) return;
     clearAutoClose();
     isOpen = false;
-    overlay.classList.remove("welcome-overlay--visible");
     overlay.classList.remove("welcome-overlay--splash-only");
-    overlay.style.display = "none";
-    notifyVisibility(false);
+    overlay.classList.add("welcome-overlay--hiding");
+    overlay.classList.remove("welcome-overlay--visible");
 
-    if (typeof onFinished === "function") {
-      onFinished();
-    }
+    let done = false;
+    const finalize = () => {
+      if (done) return;
+      done = true;
+      overlay.removeEventListener("transitionend", finalize);
+      overlay.style.display = "none";
+      overlay.classList.remove(
+        "welcome-overlay--visible",
+        "welcome-overlay--hiding",
+        "welcome-overlay--splash-only"
+      );
+      notifyVisibility(false);
+      if (typeof onFinished === "function") {
+        onFinished();
+      }
+    };
+
+    overlay.addEventListener("transitionend", finalize);
+    window.setTimeout(finalize, 260); // fallback if transitionend doesn’t fire
   }
 
   function openOverlay(startIndex = 0, opts = {}) {
@@ -321,6 +336,7 @@ export function initWelcomeTour(options = {}) {
     renderSlide(startIndex);
 
     overlay.style.display = "flex";
+    overlay.classList.remove("welcome-overlay--hiding");
 
     notifyVisibility(true);
 
@@ -499,7 +515,7 @@ export function initWelcomeTour(options = {}) {
   return {
     open: openOverlay,
     close: closeOverlay,
-    playSplash(durationMs = 1000) {
+    playSplash(durationMs = 2000) {
       openOverlay(0, {mode: "splash", autoCloseMs: durationMs});
     },
     goToSlide(index) {

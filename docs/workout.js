@@ -803,15 +803,15 @@ async function maybeShowWelcome() {
 
     setWelcomeActive(true);
 
-  if (welcomeSeenAlready) {
-    if (typeof welcomeTour.playSplash === "function") {
-      welcomeTour.playSplash(1100);
+    if (welcomeSeenAlready) {
+      if (typeof welcomeTour.playSplash === "function") {
+        welcomeTour.playSplash(1100);
+      } else {
+        welcomeTour.open(0);
+      }
     } else {
       welcomeTour.open(0);
     }
-  } else {
-    welcomeTour.open(0);
-  }
   } catch (err) {
     console.error("[Workout] Welcome init failed:", err);
     logDebug("Welcome init failed: " + err);

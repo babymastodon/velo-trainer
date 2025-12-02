@@ -9,7 +9,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  background: var(--bg, #0c0c0c);
+  opacity: 1;
+  transition: opacity 220ms ease;
 }
 
 .welcome-overlay--visible {
@@ -361,6 +363,20 @@
 .welcome-overlay--splash-only .welcome-shell {
   pointer-events: none;
 }
+
+.welcome-overlay--hiding {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Hide main UI while welcome is active to prevent flash */
+body.welcome-active .page-root,
+body.welcome-active .bottom-nav {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 
 /* Mobile tweaks */
 
