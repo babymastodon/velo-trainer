@@ -122,11 +122,29 @@
   z-index: 61;
   /* above slide content, still under overlay root */
   transition: opacity 160ms ease;
+  opacity: 1;
 }
 
 .welcome-overlay:not(.welcome-overlay--visible) .welcome-nav {
   opacity: 0;
   pointer-events: none;
+}
+
+.welcome-slide--splash .welcome-nav {
+  opacity: 0;
+  animation: welcome-nav-boot 280ms ease-out forwards;
+  animation-delay: 620ms;
+}
+
+@keyframes welcome-nav-boot {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
 }
 
 .welcome-nav-prev {
