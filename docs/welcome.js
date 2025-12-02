@@ -58,7 +58,7 @@ const SLIDES = [
 
 const STEP_DETAILS = {
   folder:
-    "Pick a folder where VeloDrive will store workouts, ride history, and settings so everything works offline.",
+    "Pick a folder where VeloDrive will store workouts. Install the Web App for offline access.",
   trainer:
     "Pair your FTMS trainer and heart-rate monitor. You may need to enable Bluetooth in Google Chrome.",
   workout:
