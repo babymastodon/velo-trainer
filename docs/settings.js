@@ -99,14 +99,7 @@ function actuallyCloseSettings() {
   showMainView();
 }
 
-function ensureRootDirConfigured() {
-  if (!startupNeedsAttention.missingRootDir) return true;
-  alert("Pick a VeloDrive folder first.");
-  return false;
-}
-
 function closeSettings() {
-  if (!ensureRootDirConfigured()) return;
   actuallyCloseSettings();
 }
 

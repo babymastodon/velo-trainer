@@ -29,6 +29,7 @@ import {
   clearJustScrapedFlag,
   hasSeenWelcome,
   setWelcomeSeen,
+  loadRootDirHandle,
 } from "./storage.js";
 
 // --------------------------- DOM refs ---------------------------
@@ -123,6 +124,28 @@ function hideWelcomeOverlayFallback() {
     "welcome-overlay--visible",
     "welcome-overlay--splash-only"
   );
+}
+
+async function ensureRootDirConfiguredForWorkouts() {
+  try {
+    const handle =
+      typeof loadRootDirHandle === "function" ? await loadRootDirHandle() : null;
+    if (handle) return true;
+  } catch (err) {
+    logDebug("Error checking root dir: " + err);
+  }
+  alert("Choose a VeloDrive folder first, then pick a workout.");
+  openSettingsModal();
+  return false;
+}
+
+async function openPickerWithGuard(focusName) {
+  if (!picker || typeof picker.open !== "function") return;
+  const ok = await ensureRootDirConfiguredForWorkouts();
+  if (!ok) return;
+  picker
+    .open(focusName)
+    .catch((err) => logDebug("Workout picker open error: " + err));
 }
 
 function primeAudioContext() {
@@ -732,9 +755,7 @@ async function handleLastScrapedWorkout() {
     // 2. Open the picker focused on this workout
     // -----------------------------------------
     try {
-      if (picker && typeof picker.open === "function") {
-        picker.open(title);
-      }
+      await openPickerWithGuard(title);
     } catch (err) {
       console.error("[Workout] Failed to open picker:", err);
       alert(
@@ -888,16 +909,14 @@ async function initPage() {
   if (workoutNameLabel) {
     workoutNameLabel.dataset.clickable = "true";
     workoutNameLabel.title = "Click to choose a workout.";
-    workoutNameLabel.addEventListener("click", () => {
+    workoutNameLabel.addEventListener("click", async () => {
       const vm = engine.getViewModel();
       if (vm.workoutRunning) {
         alert("End the current workout before changing the workout selection.");
         return;
       }
       const name = vm.canonicalWorkout?.workoutTitle;
-      picker.open(name).catch((err) =>
-        logDebug("Workout picker open error: " + err)
-      );
+      await openPickerWithGuard(name);
     });
   }
 
