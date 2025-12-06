@@ -508,7 +508,10 @@ function createWorkoutEngine() {
       manualErgTarget = active.manualErgTarget || manualErgTarget;
       manualResistance = active.manualResistance || manualResistance;
       workoutRunning = !!active.workoutRunning;
-      workoutPaused = true;
+      // If we were mid-workout, resume in a paused state for safety.
+      // Otherwise, respect the persisted paused flag to avoid blocking
+      // workout selection when nothing is actually running.
+      workoutPaused = workoutRunning ? true : !!active.workoutPaused;
       elapsedSec = active.elapsedSec || 0;
       currentIntervalIndex = active.currentIntervalIndex || 0;
       liveSamples = active.liveSamples || [];

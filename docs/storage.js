@@ -185,7 +185,17 @@ export async function loadZwoDirHandle() {
 
 // Root
 async function saveRootDirHandle(handle) {
-  rootDirHandle = handle || null;
+  const nextHandle = handle || null;
+  const changed = rootDirHandle && rootDirHandle !== nextHandle;
+
+  if (changed) {
+    // Invalidate cached subdirectory handles so future loads use the new root
+    workoutDirHandle = null;
+    zwoDirHandle = null;
+    trashDirHandle = null;
+  }
+
+  rootDirHandle = nextHandle;
   return saveHandle(ROOT_DIR_KEY, rootDirHandle);
 }
 
