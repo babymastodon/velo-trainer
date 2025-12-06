@@ -519,8 +519,6 @@ function setChartEmptyState(kind) {
 function drawChart(vm) {
   if (!chartSvg || !chartPanel) return;
 
-  const showNoBike = !bikeConnected;
-
   const showReadyToStart =
     bikeConnected &&
     vm &&
@@ -537,20 +535,21 @@ function drawChart(vm) {
     vm.workoutRunning;
 
   const showNoWorkout =
-    bikeConnected &&
     vm &&
     vm.mode === "workout" &&
     !vm.canonicalWorkout &&
     !vm.workoutRunning;
 
-  if (showNoBike) {
-    setChartEmptyState("noBike");
-  } else if (showResume) {
+  const showNoBike = !bikeConnected;
+
+  if (showResume) {
     setChartEmptyState("resume");
   } else if (showReadyToStart) {
     setChartEmptyState("readyToStart");
   } else if (showNoWorkout) {
     setChartEmptyState("noWorkout");
+  } else if (showNoBike) {
+    setChartEmptyState("noBike");
   } else {
     setChartEmptyState("none");
   }
