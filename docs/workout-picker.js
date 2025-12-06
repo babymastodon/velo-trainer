@@ -1389,30 +1389,27 @@ function createWorkoutPicker(config) {
   }
 
   async function maybeHandleUnsavedBeforeLeave(opts = {}) {
-    const {reopenAfterSave = true} = opts;
+    const {reopenAfterSave = true} = opts; // kept for signature compatibility
     if (!isBuilderMode || !hasUnsavedBuilderChanges) return true;
 
-    const wantsSave = window.confirm(
-      "You have unsaved changes. Save them before leaving?\n\n" +
-      "OK = Save changes and leave\nCancel = Leave without saving"
+    const confirmExit = window.confirm(
+      "You have unsaved changes. Exit and discard them?\n\n" +
+      "OK = Discard changes and leave\nCancel = Stay and keep editing"
     );
 
-    if (!wantsSave) {
-      if (workoutBuilder) {
-        suppressBuilderDirty = true;
-        await clearPersistedBuilderState();
-        workoutBuilder.clearState({persist: false});
-        suppressBuilderDirty = false;
-        setBuilderBaselineFromCurrent();
-        hasUnsavedBuilderChanges = false;
-      }
-      return true;
+    if (!confirmExit) {
+      return false;
     }
 
-    const result = await saveCurrentBuilderWorkoutToZwoDir({
-      reopenAfterSave,
-    });
-    return !!(result && result.ok);
+    if (workoutBuilder) {
+      suppressBuilderDirty = true;
+      await clearPersistedBuilderState();
+      workoutBuilder.clearState({persist: false});
+      suppressBuilderDirty = false;
+      setBuilderBaselineFromCurrent();
+      hasUnsavedBuilderChanges = false;
+    }
+    return true;
   }
 
   // --------------------------- public API ---------------------------
